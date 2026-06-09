@@ -1,0 +1,6 @@
+*.zip
+*.pdf
+downloads/
+__pycache__/
+.venv/
+.git/

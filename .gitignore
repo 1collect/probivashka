@@ -1,0 +1,42 @@
+# Local data and downloads
+*.zip
+*.pdf
+downloads/
+
+# Go build artifacts
+bin/
+dist/
+build/
+*.exe
+*.test
+*.out
+coverage.out
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

@@ -1,0 +1,2870 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Probivashka</title>
+  <style>
+    :root {
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --line: #d9dde1;
+      --ink: #1f2328;
+      --muted: #66707a;
+      --accent: #1f6feb;
+      --ok: #1a7f37;
+      --error: #b42318;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.5 Arial, sans-serif;
+    }
+
+    .page {
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+
+    .layout > * {
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tab-button {
+      align-self: auto;
+      margin-bottom: -1px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
+      border-bottom-color: var(--line);
+      border-radius: 6px 6px 0 0;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .tab-button.active {
+      border-color: var(--line);
+      border-bottom-color: var(--panel);
+      background: var(--panel);
+      color: var(--ink);
+    }
+
+    .tab-panel[hidden] {
+      display: none;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    label.block {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    input[type="date"],
+    input[type="file"],
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    input[type="text"]:focus,
+    input[type="date"]:focus,
+    input[type="file"]:focus,
+    select:focus {
+      outline: 2px solid rgba(31, 111, 235, 0.18);
+      border-color: var(--accent);
+    }
+
+    .hint,
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .auth-alert {
+      display: none;
+      margin-bottom: 8px;
+      padding: 9px 12px 9px 14px;
+      border: 0;
+      border-left: 4px solid var(--error);
+      border-radius: 0 6px 6px 0;
+      background: #fff1f0;
+      color: var(--error);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .auth-alert.show {
+      display: block;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+    }
+
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .check input {
+      margin-top: 2px;
+    }
+
+    .check-title {
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      align-self: flex-start;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.danger {
+      background: var(--error);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .status {
+      min-height: 96px;
+      max-width: 100%;
+      max-height: 260px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      white-space: pre-wrap;
+      overflow: auto;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .status.error {
+      color: var(--error);
+      border-color: #f1c0c0;
+      background: #fff7f7;
+    }
+
+    .status.ok {
+      color: var(--ok);
+      border-color: #bfe3c8;
+      background: #f6fff8;
+    }
+
+    .status.warn {
+      color: #8a5a00;
+      border-color: #f2d58a;
+      background: #fff8df;
+    }
+
+    .log {
+      min-height: 260px;
+      max-height: 420px;
+      overflow: auto;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .bar {
+      height: 10px;
+      margin-top: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e9ecef;
+    }
+
+    .bar > div {
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.2s ease;
+    }
+
+    .summary {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 100%;
+      max-height: 64px;
+      overflow: auto;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
+    .result-card {
+      display: none;
+      margin-top: 4px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .result-card.show {
+      display: flex;
+    }
+
+    .result-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .result-file {
+      font-size: 13px;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .result-info {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .result-download {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      background: var(--ok);
+    }
+
+    @media (max-width: 860px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .checks {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="tabs" aria-label="Страницы">
+      <button class="tab-button active" type="button" data-tab="page1">Проверка ИП</button>
+      <button class="tab-button" type="button" data-tab="page2">Исполнительные производства</button>
+      <button class="tab-button" type="button" data-tab="page3">Названия PDF</button>
+      <button class="tab-button" type="button" data-tab="page4">ЕРД по ИИН</button>
+      <button class="tab-button" type="button" data-tab="page5">Запросы ИП</button>
+    </nav>
+
+    <div class="panel" style="margin-bottom: 16px;">
+      <h1 id="pageTitle">Выгрузка ИП</h1>
+      <p id="pageDescription">Загрузите файл с номерами, вставьте ключ сессии и выберите, какие разделы нужно выгрузить.</p>
+    </div>
+
+    <section id="page1" class="tab-panel layout">
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="sessionKey">Ключ сессии</label>
+            <div id="sessionAuthAlert" class="auth-alert"></div>
+            <input id="sessionKey" type="text" placeholder="SESSION">
+          </div>
+
+          <div class="field">
+            <label class="block" for="sourceFile">Файл с номерами</label>
+            <input id="sourceFile" type="file" accept=".xlsx">
+            <div class="hint">Номера берутся из первого столбца файла.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Листы</h2>
+          <div class="checks">
+            <label class="check">
+              <input id="selectAll" type="checkbox" checked>
+              <span class="check-title">Выбрать все</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="gcvpPayments" checked>
+              <span class="check-title">Выплаты/Пенсионные отчисления</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="bankArrest" checked>
+              <span class="check-title">Арест на банковские счета</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="travelBan" checked>
+              <span class="check-title">Временное ограничение на выезд</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="transportArrest" checked>
+              <span class="check-title">Арест на транспорт</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="propertyArrest" checked>
+              <span class="check-title">Арест на имущество</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="notaryBan" checked>
+              <span class="check-title">Запрет на совершение нотариальных действий</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="registrationBan" checked>
+              <span class="check-title">Запрет на регистрационные действия</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="driverLicense" checked>
+              <span class="check-title">Водительское удостоверение</span>
+            </label>
+
+            <label class="check">
+              <input class="option" type="checkbox" data-key="notificationMethod" checked>
+              <span class="check-title">Способ уведомления должника (СМС/ЕТУ)</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="startButton" type="button">Запустить выгрузку</button>
+              <button id="cancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">После завершения выгрузки появится кнопка скачивания результата.</span>
+            <div id="checkResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="status" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="progressBar"></div></div>
+        <div id="summary" class="summary">
+          Лист с суммой долга и частичным погашением выгружается всегда. Остальные разделы зависят от отмеченных пунктов.
+        </div>
+      </aside>
+    </section>
+
+    <section id="page2" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="execSessionKey">Ключ сессии</label>
+            <div id="execSessionAuthAlert" class="auth-alert"></div>
+            <input id="execSessionKey" type="text" placeholder="SESSION">
+          </div>
+
+        </section>
+
+        <section class="panel">
+          <h2>Статусы</h2>
+          <div class="field">
+            <label class="block" for="execStatuses">STATUS</label>
+            <select id="execStatuses">
+              <option value="">Все</option>
+              <option value="1">На исполнении</option>
+              <option value="2">Отказано в возбуждении</option>
+              <option value="3">Возврат без исполнения</option>
+              <option value="50">Окончено</option>
+              <option value="51">Приостановлено</option>
+              <option value="52">Направлено по территории</option>
+            </select>
+            <div class="hint">При выборе “Все” запрос отправляется без statusCode.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="execStartButton" type="button">Запустить выгрузку</button>
+              <button id="execCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">Промежуточные файлы временно сохраняются в отдельной папке задачи и удаляются после сборки. Итоговый файл доступен через кнопку скачивания.</span>
+            <div id="execResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="execStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="execProgressBar"></div></div>
+        <div id="execSummary" class="summary">Сначала строятся диапазоны до 10 000 записей, затем Excel выгружается последовательно.</div>
+      </aside>
+    </section>
+
+    <section id="page3" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="pdfSessionKey">Ключ сессии</label>
+            <div id="pdfSessionAuthAlert" class="auth-alert"></div>
+            <input id="pdfSessionKey" type="text" placeholder="SESSION">
+          </div>
+
+          <div class="field">
+            <label class="block" for="pdfSourceFile">Файл с исполнительными производствами</label>
+            <input id="pdfSourceFile" type="file" accept=".xlsx">
+            <div class="hint">Первая колонка обязательна: номер. Статус “Окончено” применяется автоматически как фильтр поиска. В итоговый XLSX добавятся дата постановления и основание.</div>
+          </div>
+
+          <div class="field">
+            <label class="block" for="pdfWorkersCount">Параллельных запросов</label>
+            <input id="pdfWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="pdfStartButton" type="button">Сформировать XLSX</button>
+              <button id="pdfCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">PDF используются только для парсинга. Итоговый XLSX сохранит исходные строки и добавит две новые колонки.</span>
+            <div id="pdfResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="pdfStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="pdfProgressBar"></div></div>
+        <div id="pdfSummary" class="summary">Берутся номера из первой колонки, поиск выполняется со статусом “Окончено”</div>
+      </aside>
+    </section>
+
+    <section id="page4" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="erdSourceFile">Файл с ИИН</label>
+            <input id="erdSourceFile" type="file" accept=".xlsx">
+            <div class="hint">ИИН берутся из первого столбца файла. SESSION не нужен.</div>
+          </div>
+
+          <div class="field">
+            <label class="block" for="erdWorkersCount">Параллельных запросов</label>
+            <input id="erdWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="erdStartButton" type="button">Сформировать XLSX</button>
+              <button id="erdCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">Для каждого найденного результата detail сохраняется отдельной строкой в итоговом XLSX.</span>
+            <div id="erdResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="erdStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="erdProgressBar"></div></div>
+        <div id="erdSummary" class="summary">По каждому ИИН выполняется поиск ЕРД, затем детальный запрос по каждой найденной записи.</div>
+      </aside>
+    </section>
+
+    <section id="page5" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="requestSessionKey">Ключ сессии</label>
+            <div id="requestSessionAuthAlert" class="auth-alert"></div>
+            <input id="requestSessionKey" type="text" placeholder="SESSION">
+          </div>
+
+          <div class="field">
+            <label class="block" for="requestSourceFile">Файл с исполнительными документами</label>
+            <input id="requestSourceFile" type="file" accept=".xlsx">
+            <div class="hint">Исполнительные документы берутся из первого столбца. Поиск выполняется только по статусу “На исполнении”.</div>
+          </div>
+
+          <div class="field">
+            <label class="block" for="requestWorkersCount">Параллельных запросов</label>
+            <input id="requestWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="requestStartButton" type="button">Сформировать XLSX</button>
+              <button id="requestCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">В итоговый XLSX добавляются последние ответы по ОПВ и выплатам пенсий/пособий.</span>
+            <div id="requestResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="requestStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="requestProgressBar"></div></div>
+        <div id="requestSummary" class="summary">Результат: исходный номер и шесть новых колонок request/state/responseDate.</div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
+    const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+    const pageTitle = document.getElementById("pageTitle");
+    const pageDescription = document.getElementById("pageDescription");
+    const sessionKeyInput = document.getElementById("sessionKey");
+    const sourceFileInput = document.getElementById("sourceFile");
+    const selectAllInput = document.getElementById("selectAll");
+    const optionInputs = Array.from(document.querySelectorAll(".option"));
+    const startButton = document.getElementById("startButton");
+    const cancelButton = document.getElementById("cancelButton");
+    const statusBox = document.getElementById("status");
+    const progressBar = document.getElementById("progressBar");
+    const summaryBox = document.getElementById("summary");
+    const checkResultCard = document.getElementById("checkResultCard");
+    const execSessionKeyInput = document.getElementById("execSessionKey");
+    const execStatusesSelect = document.getElementById("execStatuses");
+    const execStartButton = document.getElementById("execStartButton");
+    const execCancelButton = document.getElementById("execCancelButton");
+    const execStatusBox = document.getElementById("execStatus");
+    const execProgressBar = document.getElementById("execProgressBar");
+    const execSummaryBox = document.getElementById("execSummary");
+    const execResultCard = document.getElementById("execResultCard");
+    const pdfSessionKeyInput = document.getElementById("pdfSessionKey");
+    const pdfSourceFileInput = document.getElementById("pdfSourceFile");
+    const pdfWorkersCountInput = document.getElementById("pdfWorkersCount");
+    const pdfStartButton = document.getElementById("pdfStartButton");
+    const pdfCancelButton = document.getElementById("pdfCancelButton");
+    const pdfStatusBox = document.getElementById("pdfStatus");
+    const pdfProgressBar = document.getElementById("pdfProgressBar");
+    const pdfSummaryBox = document.getElementById("pdfSummary");
+    const pdfResultCard = document.getElementById("pdfResultCard");
+    const sessionAuthAlert = document.getElementById("sessionAuthAlert");
+    const execSessionAuthAlert = document.getElementById("execSessionAuthAlert");
+    const pdfSessionAuthAlert = document.getElementById("pdfSessionAuthAlert");
+    const erdSourceFileInput = document.getElementById("erdSourceFile");
+    const erdWorkersCountInput = document.getElementById("erdWorkersCount");
+    const erdStartButton = document.getElementById("erdStartButton");
+    const erdCancelButton = document.getElementById("erdCancelButton");
+    const erdStatusBox = document.getElementById("erdStatus");
+    const erdProgressBar = document.getElementById("erdProgressBar");
+    const erdSummaryBox = document.getElementById("erdSummary");
+    const erdResultCard = document.getElementById("erdResultCard");
+    const requestSessionKeyInput = document.getElementById("requestSessionKey");
+    const requestSourceFileInput = document.getElementById("requestSourceFile");
+    const requestWorkersCountInput = document.getElementById("requestWorkersCount");
+    const requestStartButton = document.getElementById("requestStartButton");
+    const requestCancelButton = document.getElementById("requestCancelButton");
+    const requestStatusBox = document.getElementById("requestStatus");
+    const requestProgressBar = document.getElementById("requestProgressBar");
+    const requestSummaryBox = document.getElementById("requestSummary");
+    const requestResultCard = document.getElementById("requestResultCard");
+    const requestSessionAuthAlert = document.getElementById("requestSessionAuthAlert");
+    const pdfOwnerTokenKey = "probivashka.pdfOwnerToken";
+    const checkActiveJobKey = "probivashka.activeCheckJob";
+    const execActiveJobKey = "probivashka.activeExecJob";
+    const pdfActiveJobKey = "probivashka.activePdfJob";
+    const erdActiveJobKey = "probivashka.activeErdJob";
+    const requestActiveJobKey = "probivashka.activeRequestStatusJob";
+    const checkResultJobKey = "probivashka.resultCheckJob";
+    const execResultJobKey = "probivashka.resultExecJob";
+    const pdfResultJobKey = "probivashka.resultPdfJob";
+    const erdResultJobKey = "probivashka.resultErdJob";
+    const requestResultJobKey = "probivashka.resultRequestStatusJob";
+    const checkSessionKey = "probivashka.checkSession";
+    const execSessionStorageKey = "probivashka.execSession";
+    const pdfSessionStorageKey = "probivashka.pdfSession";
+    const requestSessionStorageKey = "probivashka.requestSession";
+    let checkAuthPaused = false;
+    let execAuthPaused = false;
+    let pdfAuthPaused = false;
+    let requestAuthPaused = false;
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setActiveTab(button.dataset.tab);
+      });
+    });
+
+    selectAllInput.addEventListener("change", () => {
+      optionInputs.forEach((input) => {
+        input.checked = selectAllInput.checked;
+      });
+    });
+
+    optionInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        selectAllInput.checked = optionInputs.every((item) => item.checked);
+      });
+    });
+
+    persistInputValue(sessionKeyInput, checkSessionKey);
+    persistInputValue(execSessionKeyInput, execSessionStorageKey);
+    persistInputValue(pdfSessionKeyInput, pdfSessionStorageKey);
+    persistInputValue(requestSessionKeyInput, requestSessionStorageKey);
+    fixWorkersInput(pdfWorkersCountInput);
+    fixWorkersInput(erdWorkersCountInput);
+    fixWorkersInput(requestWorkersCountInput);
+
+    cancelButton.addEventListener("click", () => {
+      cancelJob("/ws", "check-cancel", checkActiveJobKey, {
+        setBusy,
+        onCancel: () => {
+          setCheckAuthPaused(false);
+          setStatus("Операция отменена.", true);
+          summaryBox.textContent = "Задача остановлена пользователем.";
+        }
+      });
+    });
+
+    execCancelButton.addEventListener("click", () => {
+      cancelJob("/execproc-ws", "execproc-cancel", execActiveJobKey, {
+        setBusy: setExecBusy,
+        onCancel: () => {
+          setExecAuthPaused(false);
+          appendExecLog("Операция отменена.");
+          execStatusBox.classList.add("error");
+          execSummaryBox.textContent = "Задача остановлена пользователем.";
+        }
+      });
+    });
+
+    pdfCancelButton.addEventListener("click", () => {
+      cancelJob("/pdf-titles-ws", "pdf-titles-cancel", pdfActiveJobKey, {
+        setBusy: setPdfBusy,
+        onCancel: () => {
+          setPdfAuthPaused(false);
+          setPdfStatus("Операция отменена.", true);
+          pdfSummaryBox.textContent = "Задача остановлена пользователем.";
+        }
+      });
+    });
+
+    erdCancelButton.addEventListener("click", () => {
+      cancelJob("/debtor-erd-ws", "debtor-erd-cancel", erdActiveJobKey, {
+        setBusy: setErdBusy,
+        onCancel: () => {
+          setErdStatus("Операция отменена.", true);
+          erdSummaryBox.textContent = "Задача остановлена пользователем.";
+        }
+      });
+    });
+
+    requestCancelButton.addEventListener("click", () => {
+      cancelJob("/request-status-ws", "request-status-cancel", requestActiveJobKey, {
+        setBusy: setRequestBusy,
+        onCancel: () => {
+          setRequestAuthPaused(false);
+          setRequestStatus("Операция отменена.", true);
+          requestSummaryBox.textContent = "Задача остановлена пользователем.";
+        }
+      });
+    });
+
+    function updatePageIntro(tabId) {
+      if (tabId === "page2") {
+        pageTitle.textContent = "Исполнительные производства";
+        pageDescription.textContent = "Вставьте SESSION, выберите статус и запустите выгрузку. Система построит диапазоны, скачает промежуточные Excel-файлы и подготовит итоговый XLSX.";
+        return;
+      }
+
+      if (tabId === "page3") {
+        pageTitle.textContent = "Названия PDF";
+        pageDescription.textContent = "Загрузите XLSX с номерами в первой колонке, вставьте SESSION и получите исходный файл с двумя новыми колонками: дата постановления и основание.";
+        return;
+      }
+
+      if (tabId === "page4") {
+        pageTitle.textContent = "ЕРД по ИИН";
+        pageDescription.textContent = "Загрузите XLSX с ИИН в первом столбце. Поиск выполняется без SESSION, каждая найденная запись сохраняется отдельной строкой.";
+        return;
+      }
+
+      if (tabId === "page5") {
+        pageTitle.textContent = "Запросы ИП";
+        pageDescription.textContent = "Загрузите XLSX с исполнительными документами в первой колонке. Для каждого номера выполняется поиск на исполнении и выгружаются последние статусы ОПВ и выплат пенсий/пособий.";
+        return;
+      }
+
+      pageTitle.textContent = "Выгрузка ИП";
+      pageDescription.textContent = "Загрузите файл с номерами, вставьте ключ сессии и выберите, какие разделы нужно выгрузить.";
+    }
+
+    startButton.addEventListener("click", async () => {
+      if (checkAuthPaused) {
+        submitUpdatedToken("/ws", "check-token", checkActiveJobKey, sessionKeyInput, {
+          setPaused: setCheckAuthPaused,
+          setBusy,
+          setStatus: (message) => setStatus(message)
+        });
+        return;
+      }
+
+      const sessionKey = sessionKeyInput.value.trim();
+      const file = sourceFileInput.files[0];
+      const startedAt = Date.now();
+      let checkTimer = null;
+      let lastCheckProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        failed: 0
+      };
+
+      if (!sessionKey) {
+        setStatus("Введите ключ сессии.", true);
+        return;
+      }
+
+      if (!file) {
+        setStatus("Выберите xlsx файл.", true);
+        return;
+      }
+
+	      setBusy(true);
+	      clearStoredResult(checkResultJobKey, checkResultCard);
+	      setStatus("Подготавливаю выгрузку...");
+	      setProgress(0);
+	      summaryBox.textContent = "Подготовка файла...";
+
+      try {
+        const fileBase64 = await readFileAsBase64(file);
+        const socket = new WebSocket(buildWsUrl("/ws"));
+
+        checkTimer = window.setInterval(() => {
+          renderCheckProgress(lastCheckProgress, startedAt);
+        }, 1000);
+
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "start",
+            sessionKey,
+            fileName: file.name,
+            fileBase64,
+            selectAll: selectAllInput.checked,
+            options: collectOptions(),
+            ownerToken: getPdfOwnerToken()
+          }));
+        });
+
+        socket.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "progress") {
+            const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+            const elapsedMs = Date.now() - startedAt;
+            const remainingMs = data.current > 0
+              ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+              : null;
+            lastCheckProgress = {
+              current: data.current || 0,
+              total: data.total || 0,
+              percent,
+              remainingMs,
+              failed: data.failed || 0
+            };
+            const label = `${data.current}/${data.total} • ${data.number} • ${data.status}${data.error ? `\n${data.error}` : ""}`;
+            setStatus(label, data.status === "Ошибка");
+            renderCheckProgress(lastCheckProgress, startedAt);
+            return;
+          }
+
+          if (data.type === "job") {
+            rememberActiveJob(checkActiveJobKey, data.jobId || "", startedAt);
+            return;
+          }
+
+          if (data.type === "auth") {
+            if (checkTimer) {
+              window.clearInterval(checkTimer);
+              checkTimer = null;
+            }
+            handleCheckAuth(data);
+            return;
+          }
+
+	          if (data.type === "result") {
+	            if (checkTimer) {
+	              window.clearInterval(checkTimer);
+	              checkTimer = null;
+	            }
+	            setProgress(100);
+	            setStatus(`Готово. Успешно: ${data.processed}, ошибок: ${data.failed}.`, false, true);
+	            summaryBox.textContent = "Файл с результатом готов.";
+	            rememberResultJob(checkResultJobKey, data.jobId || localStorage.getItem(checkActiveJobKey));
+	            showResultCard(checkResultCard, data.fileBase64, data.fileName || "results.xlsx");
+	            clearActiveJob(checkActiveJobKey);
+            setCheckAuthPaused(false);
+            setBusy(false);
+            socket.close();
+            return;
+          }
+
+          if (data.type === "error") {
+            if (checkTimer) {
+              window.clearInterval(checkTimer);
+              checkTimer = null;
+            }
+            setStatus(data.message || "Ошибка обработки.", true);
+            clearActiveJob(checkActiveJobKey);
+            setCheckAuthPaused(false);
+            setBusy(false);
+            socket.close();
+          }
+        });
+
+        socket.addEventListener("error", () => {
+          if (checkTimer) {
+            window.clearInterval(checkTimer);
+            checkTimer = null;
+          }
+          setStatus("Ошибка соединения.", true);
+          setBusy(false);
+        });
+
+        socket.addEventListener("close", () => {
+          if (checkTimer) {
+            window.clearInterval(checkTimer);
+            checkTimer = null;
+          }
+          setBusy(false);
+        });
+      } catch (error) {
+        if (checkTimer) {
+          window.clearInterval(checkTimer);
+          checkTimer = null;
+        }
+        setStatus(error.message || "Не удалось обработать файл.", true);
+        setBusy(false);
+      }
+    });
+
+    execStartButton.addEventListener("click", () => {
+      if (execAuthPaused) {
+        submitUpdatedToken("/execproc-ws", "execproc-token", execActiveJobKey, execSessionKeyInput, {
+          setPaused: setExecAuthPaused,
+          setBusy: setExecBusy,
+          setStatus: (message) => appendExecLog(message)
+        });
+        return;
+      }
+
+      const sessionKey = execSessionKeyInput.value.trim();
+      const status = execStatusesSelect.value;
+      const startedAt = Date.now();
+      let execTimer = null;
+      let lastExecProgress = {
+        current: 0,
+        total: 100,
+        percent: 0,
+        stage: "Подключение",
+        remainingMs: null
+      };
+
+      if (!sessionKey) {
+        setExecStatus("Введите SESSION.", true);
+        return;
+      }
+
+	      setExecBusy(true);
+	      clearStoredResult(execResultJobKey, execResultCard);
+	      setExecStatus("Подключаюсь к серверу...");
+	      setExecProgress(0);
+      execSummaryBox.textContent = "Ожидание ответа сервера...";
+      execTimer = window.setInterval(() => {
+        renderExecProgress(lastExecProgress, startedAt);
+      }, 1000);
+
+      const socket = new WebSocket(buildWsUrl("/execproc-ws"));
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "execproc-start",
+          sessionKey,
+          statuses: status ? [status] : [],
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "log") {
+          appendExecLog(data.message || "");
+          return;
+        }
+
+          if (data.type === "job") {
+            rememberActiveJob(execActiveJobKey, data.jobId || "", startedAt);
+            appendExecLog(data.message || "Задача запущена.");
+            return;
+          }
+
+          if (data.type === "auth") {
+            handleExecAuth(data);
+            return;
+          }
+
+          if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          const elapsedMs = Date.now() - startedAt;
+          const remainingMs = data.current > 0
+            ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+            : null;
+          lastExecProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            stage: normalizeExecProgressStage(data.status || data.message),
+            remainingMs
+          };
+          renderExecProgress(lastExecProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "result") {
+          if (execTimer) {
+            window.clearInterval(execTimer);
+            execTimer = null;
+          }
+	          setExecProgress(100);
+	          appendExecLog(`Готово. Строк: ${data.processed || 0}, дублей удалено: ${data.failed || 0}.`);
+	          execStatusBox.classList.add("ok");
+	          execSummaryBox.textContent = "Итоговый файл готов.";
+	          rememberResultJob(execResultJobKey, data.jobId || localStorage.getItem(execActiveJobKey));
+	          showResultCard(execResultCard, data.fileBase64, data.fileName || "result.xlsx");
+	          clearActiveJob(execActiveJobKey);
+          setExecAuthPaused(false);
+          setExecBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (execTimer) {
+            window.clearInterval(execTimer);
+            execTimer = null;
+          }
+          appendExecLog(data.message || "Ошибка выгрузки.");
+          execStatusBox.classList.add("error");
+          clearActiveJob(execActiveJobKey);
+          setExecAuthPaused(false);
+          setExecBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        if (execTimer) {
+          window.clearInterval(execTimer);
+          execTimer = null;
+        }
+        appendExecLog("Ошибка соединения.");
+        execStatusBox.classList.add("error");
+        setExecBusy(false);
+      });
+
+      socket.addEventListener("close", () => {
+        if (execTimer) {
+          window.clearInterval(execTimer);
+          execTimer = null;
+        }
+        setExecBusy(false);
+      });
+    });
+
+    pdfStartButton.addEventListener("click", async () => {
+      if (pdfAuthPaused) {
+        submitUpdatedToken("/pdf-titles-ws", "pdf-titles-token", pdfActiveJobKey, pdfSessionKeyInput, {
+          setPaused: setPdfAuthPaused,
+          setBusy: setPdfBusy,
+          setStatus: (message) => setPdfStatus(message)
+        });
+        return;
+      }
+
+      const sessionKey = pdfSessionKeyInput.value.trim();
+      const file = pdfSourceFileInput.files[0];
+      const workers = Number.parseInt(pdfWorkersCountInput.value.trim(), 10);
+      const startedAt = Date.now();
+      let pdfTimer = null;
+      let lastPdfProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        stage: "Подключение",
+        remainingMs: null,
+        documents: 0,
+        failed: 0
+      };
+
+      if (!sessionKey) {
+        setPdfStatus("Введите SESSION.", true);
+        return;
+      }
+
+      if (!file) {
+        setPdfStatus("Выберите xlsx файл.", true);
+        return;
+      }
+
+      if (!Number.isInteger(workers) || workers < 1 || workers > 96) {
+        setPdfStatus("Укажите количество параллельных запросов от 1 до 96.", true);
+        return;
+      }
+
+	      setPdfBusy(true);
+	      clearStoredResult(pdfResultJobKey, pdfResultCard);
+	      setPdfStatus("Подключаюсь к серверу...");
+	      setPdfProgress(0);
+      pdfSummaryBox.textContent = "Подготовка файла...";
+
+      try {
+        const fileBase64 = await readFileAsBase64(file);
+        const socket = new WebSocket(buildWsUrl("/pdf-titles-ws"));
+
+        pdfTimer = window.setInterval(() => {
+          renderPdfProgress(lastPdfProgress, startedAt);
+        }, 1000);
+
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "pdf-titles-start",
+            sessionKey,
+            fileName: file.name,
+            fileBase64,
+            workers,
+            ownerToken: getPdfOwnerToken()
+          }));
+        });
+
+        socket.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "log") {
+            appendPdfLog(data.message || "");
+            return;
+          }
+
+          if (data.type === "job") {
+            rememberActiveJob(pdfActiveJobKey, data.jobId || "", startedAt);
+            appendPdfLog(data.message || "Задача запущена.");
+            return;
+          }
+
+          if (data.type === "auth") {
+            handlePdfAuth(data);
+            return;
+          }
+
+          if (data.type === "progress") {
+            const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+            const elapsedMs = Date.now() - startedAt;
+            const remainingMs = data.current > 0
+              ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+              : null;
+            lastPdfProgress = {
+              current: data.current || 0,
+              total: data.total || 0,
+              percent,
+              stage: "Поиск PDF",
+              remainingMs,
+              documents: data.processed || 0,
+              failed: data.failed || 0
+            };
+            const label = `${data.current}/${data.total} • ${data.number} • ${data.status}${data.error ? `\n${data.error}` : ""}`;
+            setPdfStatus(label, data.status === "Ошибка");
+            renderPdfProgress(lastPdfProgress, startedAt);
+            return;
+          }
+
+          if (data.type === "result") {
+            if (pdfTimer) {
+              window.clearInterval(pdfTimer);
+              pdfTimer = null;
+            }
+	            setPdfProgress(100);
+	            setPdfStatus(`Готово. Найдено ИП: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+	            pdfSummaryBox.textContent = "XLSX с новыми колонками готов.";
+	            rememberResultJob(pdfResultJobKey, data.jobId || localStorage.getItem(pdfActiveJobKey));
+	            showResultCard(pdfResultCard, data.fileBase64, data.fileName || "execproc_with_pdf_parse.xlsx");
+	            clearActiveJob(pdfActiveJobKey);
+            setPdfAuthPaused(false);
+            setPdfBusy(false);
+            socket.close();
+            return;
+          }
+
+          if (data.type === "error") {
+            if (pdfTimer) {
+              window.clearInterval(pdfTimer);
+              pdfTimer = null;
+            }
+            setPdfStatus(data.message || "Ошибка обработки.", true);
+            clearActiveJob(pdfActiveJobKey);
+            setPdfAuthPaused(false);
+            setPdfBusy(false);
+            socket.close();
+          }
+        });
+
+        socket.addEventListener("error", () => {
+          if (pdfTimer) {
+            window.clearInterval(pdfTimer);
+            pdfTimer = null;
+          }
+          setPdfStatus("Ошибка соединения.", true);
+          setPdfBusy(false);
+        });
+
+        socket.addEventListener("close", () => {
+          if (pdfTimer) {
+            window.clearInterval(pdfTimer);
+            pdfTimer = null;
+          }
+          setPdfBusy(false);
+        });
+      } catch (error) {
+        if (pdfTimer) {
+          window.clearInterval(pdfTimer);
+        }
+        setPdfStatus(error.message || "Не удалось обработать файл.", true);
+        setPdfBusy(false);
+      }
+    });
+
+    erdStartButton.addEventListener("click", async () => {
+      const file = erdSourceFileInput.files[0];
+      const workers = Number.parseInt(erdWorkersCountInput.value.trim(), 10);
+      const startedAt = Date.now();
+      let erdTimer = null;
+      let lastErdProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        details: 0,
+        failed: 0
+      };
+
+      if (!file) {
+        setErdStatus("Выберите xlsx файл.", true);
+        return;
+      }
+
+      if (!Number.isInteger(workers) || workers < 1 || workers > 32) {
+        setErdStatus("Укажите количество параллельных запросов от 1 до 32.", true);
+        return;
+      }
+
+      setErdBusy(true);
+	      clearStoredResult(erdResultJobKey, erdResultCard);
+	      setErdStatus("Подключаюсь к серверу...");
+	      setErdProgress(0);
+      erdSummaryBox.textContent = "Подготовка файла...";
+
+      try {
+        const fileBase64 = await readFileAsBase64(file);
+        const socket = new WebSocket(buildWsUrl("/debtor-erd-ws"));
+
+        erdTimer = window.setInterval(() => {
+          renderErdProgress(lastErdProgress, startedAt);
+        }, 1000);
+
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "debtor-erd-start",
+            fileName: file.name,
+            fileBase64,
+            workers,
+            ownerToken: getPdfOwnerToken()
+          }));
+        });
+
+        socket.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "job") {
+            rememberActiveJob(erdActiveJobKey, data.jobId || "", startedAt);
+            appendErdLog(data.message || "Задача запущена.");
+            return;
+          }
+
+          if (data.type === "progress") {
+            const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+            const elapsedMs = Date.now() - startedAt;
+            const remainingMs = data.current > 0
+              ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+              : null;
+            lastErdProgress = {
+              current: data.current || 0,
+              total: data.total || 0,
+              percent,
+              remainingMs,
+              details: data.processed || 0,
+              failed: data.failed || 0
+            };
+            const label = `${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`;
+            setErdStatus(label, data.status === "Ошибка");
+            renderErdProgress(lastErdProgress, startedAt);
+            return;
+          }
+
+          if (data.type === "result") {
+            if (erdTimer) {
+              window.clearInterval(erdTimer);
+              erdTimer = null;
+            }
+	            setErdProgress(100);
+	            setErdStatus(`Готово. Детальных строк: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+	            erdSummaryBox.textContent = "XLSX с деталями ЕРД готов.";
+	            rememberResultJob(erdResultJobKey, data.jobId || localStorage.getItem(erdActiveJobKey));
+	            showResultCard(erdResultCard, data.fileBase64, data.fileName || "debtor_erd_details.xlsx");
+	            clearActiveJob(erdActiveJobKey);
+            setErdBusy(false);
+            socket.close();
+            return;
+          }
+
+          if (data.type === "error") {
+            if (erdTimer) {
+              window.clearInterval(erdTimer);
+              erdTimer = null;
+            }
+            setErdStatus(data.message || "Ошибка обработки.", true);
+            clearActiveJob(erdActiveJobKey);
+            setErdBusy(false);
+            socket.close();
+          }
+        });
+
+        socket.addEventListener("error", () => {
+          if (erdTimer) {
+            window.clearInterval(erdTimer);
+            erdTimer = null;
+          }
+          setErdStatus("Ошибка соединения.", true);
+          setErdBusy(false);
+        });
+
+        socket.addEventListener("close", () => {
+          if (erdTimer) {
+            window.clearInterval(erdTimer);
+            erdTimer = null;
+          }
+          setErdBusy(false);
+        });
+      } catch (error) {
+        if (erdTimer) {
+          window.clearInterval(erdTimer);
+        }
+        setErdStatus(error.message || "Не удалось обработать файл.", true);
+        setErdBusy(false);
+      }
+    });
+
+    requestStartButton.addEventListener("click", async () => {
+      if (requestAuthPaused) {
+        submitUpdatedToken("/request-status-ws", "request-status-token", requestActiveJobKey, requestSessionKeyInput, {
+          setPaused: setRequestAuthPaused,
+          setBusy: setRequestBusy,
+          setStatus: (message) => setRequestStatus(message)
+        });
+        return;
+      }
+
+      const sessionKey = requestSessionKeyInput.value.trim();
+      const file = requestSourceFileInput.files[0];
+      const workers = Number.parseInt(requestWorkersCountInput.value.trim(), 10);
+      const startedAt = Date.now();
+      let requestTimer = null;
+      let lastRequestProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        found: 0,
+        failed: 0
+      };
+
+      if (!sessionKey) {
+        setRequestStatus("Введите SESSION.", true);
+        return;
+      }
+
+      if (!file) {
+        setRequestStatus("Выберите xlsx файл.", true);
+        return;
+      }
+
+      if (!Number.isInteger(workers) || workers < 1 || workers > 32) {
+        setRequestStatus("Укажите количество параллельных запросов от 1 до 32.", true);
+        return;
+      }
+
+      setRequestBusy(true);
+      clearStoredResult(requestResultJobKey, requestResultCard);
+      setRequestStatus("Подключаюсь к серверу...");
+      setRequestProgress(0);
+      requestSummaryBox.textContent = "Подготовка файла...";
+
+      try {
+        const fileBase64 = await readFileAsBase64(file);
+        const socket = new WebSocket(buildWsUrl("/request-status-ws"));
+
+        requestTimer = window.setInterval(() => {
+          renderRequestProgress(lastRequestProgress, startedAt);
+        }, 1000);
+
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "request-status-start",
+            sessionKey,
+            fileName: file.name,
+            fileBase64,
+            workers,
+            ownerToken: getPdfOwnerToken()
+          }));
+        });
+
+        socket.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "job") {
+            rememberActiveJob(requestActiveJobKey, data.jobId || "", startedAt);
+            appendRequestLog(data.message || "Задача запущена.");
+            return;
+          }
+
+          if (data.type === "auth") {
+            if (requestTimer) {
+              window.clearInterval(requestTimer);
+              requestTimer = null;
+            }
+            handleRequestAuth(data);
+            return;
+          }
+
+          if (data.type === "progress") {
+            const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+            const elapsedMs = Date.now() - startedAt;
+            const remainingMs = data.current > 0
+              ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+              : null;
+            lastRequestProgress = {
+              current: data.current || 0,
+              total: data.total || 0,
+              percent,
+              remainingMs,
+              found: data.processed || 0,
+              failed: data.failed || 0
+            };
+            const label = `${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`;
+            setRequestStatus(label, data.status === "Ошибка");
+            renderRequestProgress(lastRequestProgress, startedAt);
+            return;
+          }
+
+          if (data.type === "result") {
+            if (requestTimer) {
+              window.clearInterval(requestTimer);
+              requestTimer = null;
+            }
+            setRequestProgress(100);
+            setRequestStatus(`Готово. Обработано: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+            requestSummaryBox.textContent = "XLSX с последними статусами запросов готов.";
+            rememberResultJob(requestResultJobKey, data.jobId || localStorage.getItem(requestActiveJobKey));
+            showResultCard(requestResultCard, data.fileBase64, data.fileName || "execdoc_request_statuses.xlsx");
+            clearActiveJob(requestActiveJobKey);
+            setRequestAuthPaused(false);
+            setRequestBusy(false);
+            socket.close();
+            return;
+          }
+
+          if (data.type === "error") {
+            if (requestTimer) {
+              window.clearInterval(requestTimer);
+              requestTimer = null;
+            }
+            setRequestStatus(data.message || "Ошибка обработки.", true);
+            clearActiveJob(requestActiveJobKey);
+            setRequestAuthPaused(false);
+            setRequestBusy(false);
+            socket.close();
+          }
+        });
+
+        socket.addEventListener("error", () => {
+          if (requestTimer) {
+            window.clearInterval(requestTimer);
+            requestTimer = null;
+          }
+          setRequestStatus("Ошибка соединения.", true);
+          setRequestBusy(false);
+        });
+
+        socket.addEventListener("close", () => {
+          if (requestTimer) {
+            window.clearInterval(requestTimer);
+            requestTimer = null;
+          }
+          setRequestBusy(false);
+        });
+      } catch (error) {
+        if (requestTimer) {
+          window.clearInterval(requestTimer);
+        }
+        setRequestStatus(error.message || "Не удалось обработать файл.", true);
+        setRequestBusy(false);
+      }
+    });
+
+    window.addEventListener("load", () => {
+      const activeCheckJobId = localStorage.getItem(checkActiveJobKey);
+      const activeExecJobId = localStorage.getItem(execActiveJobKey);
+      const activeJobId = localStorage.getItem(pdfActiveJobKey);
+      const activeErdJobId = localStorage.getItem(erdActiveJobKey);
+      const activeRequestJobId = localStorage.getItem(requestActiveJobKey);
+
+      if (activeExecJobId) {
+        setActiveTab("page2");
+      } else if (activeJobId) {
+        setActiveTab("page3");
+      } else if (activeErdJobId) {
+        setActiveTab("page4");
+      } else if (activeRequestJobId) {
+        setActiveTab("page5");
+      } else if (activeCheckJobId) {
+        setActiveTab("page1");
+      }
+
+      if (activeCheckJobId) {
+        resumeCheckJob(activeCheckJobId);
+      }
+      if (activeExecJobId) {
+        resumeExecJob(activeExecJobId);
+      }
+      if (activeJobId) {
+        resumePdfJob(activeJobId);
+      }
+	      if (activeErdJobId) {
+	        resumeErdJob(activeErdJobId);
+	      }
+      if (activeRequestJobId) {
+        resumeRequestJob(activeRequestJobId);
+      }
+	      restoreResultJob("/ws", "check-watch", checkResultJobKey, checkResultCard, "results.xlsx");
+	      restoreResultJob("/execproc-ws", "execproc-watch", execResultJobKey, execResultCard, "result.xlsx");
+	      restoreResultJob("/pdf-titles-ws", "pdf-titles-watch", pdfResultJobKey, pdfResultCard, "execproc_with_pdf_parse.xlsx");
+	      restoreResultJob("/debtor-erd-ws", "debtor-erd-watch", erdResultJobKey, erdResultCard, "debtor_erd_details.xlsx");
+      restoreResultJob("/request-status-ws", "request-status-watch", requestResultJobKey, requestResultCard, "execdoc_request_statuses.xlsx");
+	    });
+
+    function setActiveTab(tabId) {
+      const targetButton = tabButtons.find((button) => button.dataset.tab === tabId) || tabButtons[0];
+      const targetTabId = targetButton.dataset.tab;
+
+      tabButtons.forEach((button) => {
+        button.classList.toggle("active", button === targetButton);
+      });
+
+      tabPanels.forEach((panel) => {
+        panel.hidden = panel.id !== targetTabId;
+      });
+
+      updatePageIntro(targetTabId);
+    }
+
+    function resumeCheckJob(jobId) {
+      const startedAt = activeJobStartedAt(checkActiveJobKey);
+      let checkTimer = null;
+      let lastCheckProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        failed: 0
+      };
+
+      setBusy(true);
+      setStatus("Возобновляю подключение к задаче...");
+      summaryBox.textContent = "Задача продолжалась на сервере после обновления страницы.";
+      const socket = new WebSocket(buildWsUrl("/ws"));
+
+      checkTimer = window.setInterval(() => {
+        renderCheckProgress(lastCheckProgress, startedAt);
+      }, 1000);
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "check-watch",
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          const elapsedMs = Date.now() - startedAt;
+          const remainingMs = data.current > 0
+            ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+            : null;
+          lastCheckProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            remainingMs,
+            failed: data.failed || 0
+          };
+          setStatus(`${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`, data.status === "Ошибка");
+          renderCheckProgress(lastCheckProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "auth") {
+          if (checkTimer) {
+            window.clearInterval(checkTimer);
+            checkTimer = null;
+          }
+          handleCheckAuth(data);
+          return;
+        }
+
+	        if (data.type === "result") {
+	          if (checkTimer) {
+	            window.clearInterval(checkTimer);
+	            checkTimer = null;
+	          }
+	          setProgress(100);
+	          setStatus(`Готово. Успешно: ${data.processed}, ошибок: ${data.failed}.`, false, true);
+	          summaryBox.textContent = "Файл с результатом готов.";
+	          rememberResultJob(checkResultJobKey, data.jobId || localStorage.getItem(checkActiveJobKey));
+	          showResultCard(checkResultCard, data.fileBase64, data.fileName || "results.xlsx");
+	          clearActiveJob(checkActiveJobKey);
+          setCheckAuthPaused(false);
+          setBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (checkTimer) {
+            window.clearInterval(checkTimer);
+            checkTimer = null;
+          }
+          setStatus(data.message || "Ошибка обработки.", true);
+          clearActiveJob(checkActiveJobKey);
+          setCheckAuthPaused(false);
+          setBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (checkTimer) {
+          window.clearInterval(checkTimer);
+          checkTimer = null;
+        }
+        setBusy(false);
+      });
+    }
+
+    function resumeExecJob(jobId) {
+      const startedAt = activeJobStartedAt(execActiveJobKey);
+      let execTimer = null;
+      let lastExecProgress = {
+        current: 0,
+        total: 100,
+        percent: 0,
+        stage: "Возобновление",
+        remainingMs: null
+      };
+
+      setExecBusy(true);
+      setExecStatus("Возобновляю подключение к задаче...");
+      const socket = new WebSocket(buildWsUrl("/execproc-ws"));
+
+      execTimer = window.setInterval(() => {
+        renderExecProgress(lastExecProgress, startedAt);
+      }, 1000);
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "execproc-watch",
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          lastExecProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            stage: normalizeExecProgressStage(data.status || data.message),
+            remainingMs: null
+          };
+          restoreExecLog(data.logs);
+          renderExecProgress(lastExecProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "auth") {
+          handleExecAuth(data);
+          return;
+        }
+
+        if (data.type === "result") {
+          if (execTimer) {
+            window.clearInterval(execTimer);
+          }
+	          setExecProgress(100);
+	          restoreExecLog(data.logs);
+	          appendExecLog(`Готово. Строк: ${data.processed || 0}, дублей удалено: ${data.failed || 0}.`);
+	          execStatusBox.classList.add("ok");
+	          execSummaryBox.textContent = "Итоговый файл готов.";
+	          rememberResultJob(execResultJobKey, data.jobId || localStorage.getItem(execActiveJobKey));
+	          showResultCard(execResultCard, data.fileBase64, data.fileName || "result.xlsx");
+	          clearActiveJob(execActiveJobKey);
+          setExecAuthPaused(false);
+          setExecBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (execTimer) {
+            window.clearInterval(execTimer);
+          }
+          if (Array.isArray(data.logs) && data.logs.length > 0) {
+            restoreExecLog(data.logs);
+          } else {
+            appendExecLog(data.message || "Ошибка выгрузки.");
+          }
+          execStatusBox.classList.add("error");
+          clearActiveJob(execActiveJobKey);
+          setExecAuthPaused(false);
+          setExecBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (execTimer) {
+          window.clearInterval(execTimer);
+        }
+        setExecBusy(false);
+      });
+    }
+
+    function resumePdfJob(jobId) {
+      const startedAt = activeJobStartedAt(pdfActiveJobKey);
+      let pdfTimer = null;
+      let lastPdfProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        stage: "Возобновление",
+        remainingMs: null,
+        documents: 0,
+        failed: 0
+      };
+
+      setPdfBusy(true);
+      setPdfStatus("Возобновляю подключение к задаче...");
+      pdfSummaryBox.textContent = "Задача продолжалась на сервере после обновления страницы.";
+      const socket = new WebSocket(buildWsUrl("/pdf-titles-ws"));
+
+      pdfTimer = window.setInterval(() => {
+        renderPdfProgress(lastPdfProgress, startedAt);
+      }, 1000);
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "pdf-titles-watch",
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          const elapsedMs = Date.now() - startedAt;
+          const remainingMs = data.current > 0
+            ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+            : null;
+          lastPdfProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            stage: "Поиск PDF",
+            remainingMs,
+            documents: data.processed || 0,
+            failed: data.failed || 0
+          };
+          const label = `${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`;
+          setPdfStatus(label, data.status === "Ошибка");
+          renderPdfProgress(lastPdfProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "auth") {
+          handlePdfAuth(data);
+          return;
+        }
+
+        if (data.type === "result") {
+          if (pdfTimer) {
+            window.clearInterval(pdfTimer);
+            pdfTimer = null;
+          }
+	          setPdfProgress(100);
+	          setPdfStatus(`Готово. Найдено ИП: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+	          pdfSummaryBox.textContent = "XLSX с новыми колонками готов.";
+	          rememberResultJob(pdfResultJobKey, data.jobId || localStorage.getItem(pdfActiveJobKey));
+	          showResultCard(pdfResultCard, data.fileBase64, data.fileName || "execproc_with_pdf_parse.xlsx");
+	          clearActiveJob(pdfActiveJobKey);
+          setPdfAuthPaused(false);
+          setPdfBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (pdfTimer) {
+            window.clearInterval(pdfTimer);
+            pdfTimer = null;
+          }
+          setPdfStatus(data.message || "Ошибка обработки.", true);
+          clearActiveJob(pdfActiveJobKey);
+          setPdfAuthPaused(false);
+          setPdfBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (pdfTimer) {
+          window.clearInterval(pdfTimer);
+        }
+        setPdfBusy(false);
+      });
+    }
+
+    function resumeErdJob(jobId) {
+      const startedAt = activeJobStartedAt(erdActiveJobKey);
+      let erdTimer = null;
+      let lastErdProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        details: 0,
+        failed: 0
+      };
+
+      setErdBusy(true);
+      setErdStatus("Возобновляю подключение к задаче...");
+      erdSummaryBox.textContent = "Задача продолжалась на сервере после обновления страницы.";
+      const socket = new WebSocket(buildWsUrl("/debtor-erd-ws"));
+
+      erdTimer = window.setInterval(() => {
+        renderErdProgress(lastErdProgress, startedAt);
+      }, 1000);
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "debtor-erd-watch",
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          const elapsedMs = Date.now() - startedAt;
+          const remainingMs = data.current > 0
+            ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+            : null;
+          lastErdProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            remainingMs,
+            details: data.processed || 0,
+            failed: data.failed || 0
+          };
+          const label = `${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`;
+          setErdStatus(label, data.status === "Ошибка");
+          renderErdProgress(lastErdProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "result") {
+          if (erdTimer) {
+            window.clearInterval(erdTimer);
+          }
+	          setErdProgress(100);
+	          setErdStatus(`Готово. Детальных строк: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+	          erdSummaryBox.textContent = "XLSX с деталями ЕРД готов.";
+	          rememberResultJob(erdResultJobKey, data.jobId || localStorage.getItem(erdActiveJobKey));
+	          showResultCard(erdResultCard, data.fileBase64, data.fileName || "debtor_erd_details.xlsx");
+	          clearActiveJob(erdActiveJobKey);
+          setErdBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (erdTimer) {
+            window.clearInterval(erdTimer);
+          }
+          setErdStatus(data.message || "Ошибка обработки.", true);
+          clearActiveJob(erdActiveJobKey);
+          setErdBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (erdTimer) {
+          window.clearInterval(erdTimer);
+        }
+        setErdBusy(false);
+      });
+    }
+
+    function resumeRequestJob(jobId) {
+      const startedAt = activeJobStartedAt(requestActiveJobKey);
+      let requestTimer = null;
+      let lastRequestProgress = {
+        current: 0,
+        total: 0,
+        percent: 0,
+        remainingMs: null,
+        found: 0,
+        failed: 0
+      };
+
+      setRequestBusy(true);
+      setRequestStatus("Возобновляю подключение к задаче...");
+      requestSummaryBox.textContent = "Задача продолжалась на сервере после обновления страницы.";
+      const socket = new WebSocket(buildWsUrl("/request-status-ws"));
+
+      requestTimer = window.setInterval(() => {
+        renderRequestProgress(lastRequestProgress, startedAt);
+      }, 1000);
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type: "request-status-watch",
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "progress") {
+          const percent = data.total ? Math.round((data.current / data.total) * 100) : 0;
+          const elapsedMs = Date.now() - startedAt;
+          const remainingMs = data.current > 0
+            ? Math.round((elapsedMs / data.current) * Math.max(0, data.total - data.current))
+            : null;
+          lastRequestProgress = {
+            current: data.current || 0,
+            total: data.total || 0,
+            percent,
+            remainingMs,
+            found: data.processed || 0,
+            failed: data.failed || 0
+          };
+          const label = `${data.current}/${data.total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`;
+          setRequestStatus(label, data.status === "Ошибка");
+          renderRequestProgress(lastRequestProgress, startedAt);
+          return;
+        }
+
+        if (data.type === "auth") {
+          if (requestTimer) {
+            window.clearInterval(requestTimer);
+            requestTimer = null;
+          }
+          handleRequestAuth(data);
+          return;
+        }
+
+        if (data.type === "result") {
+          if (requestTimer) {
+            window.clearInterval(requestTimer);
+            requestTimer = null;
+          }
+          setRequestProgress(100);
+          setRequestStatus(`Готово. Обработано: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+          requestSummaryBox.textContent = "XLSX с последними статусами запросов готов.";
+          rememberResultJob(requestResultJobKey, data.jobId || localStorage.getItem(requestActiveJobKey));
+          showResultCard(requestResultCard, data.fileBase64, data.fileName || "execdoc_request_statuses.xlsx");
+          clearActiveJob(requestActiveJobKey);
+          setRequestAuthPaused(false);
+          setRequestBusy(false);
+          socket.close();
+          return;
+        }
+
+        if (data.type === "error") {
+          if (requestTimer) {
+            window.clearInterval(requestTimer);
+            requestTimer = null;
+          }
+          setRequestStatus(data.message || "Ошибка обработки.", true);
+          clearActiveJob(requestActiveJobKey);
+          setRequestAuthPaused(false);
+          setRequestBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (requestTimer) {
+          window.clearInterval(requestTimer);
+        }
+        setRequestBusy(false);
+      });
+    }
+
+    function getPdfOwnerToken() {
+      let token = localStorage.getItem(pdfOwnerTokenKey);
+      if (!token) {
+        token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem(pdfOwnerTokenKey, token);
+      }
+      return token;
+    }
+
+    function persistInputValue(input, storageKey) {
+      const savedValue = localStorage.getItem(storageKey);
+      if (savedValue !== null && input.value.trim() === "") {
+        input.value = savedValue;
+      }
+      input.addEventListener("input", () => {
+        localStorage.setItem(storageKey, input.value);
+      });
+    }
+
+    function fixWorkersInput(input) {
+      input.value = "8";
+      input.disabled = true;
+    }
+
+    function rememberActiveJob(storageKey, jobId, startedAt) {
+      localStorage.setItem(storageKey, jobId || "");
+      localStorage.setItem(`${storageKey}.startedAt`, String(startedAt || Date.now()));
+    }
+
+    function activeJobStartedAt(storageKey) {
+      const value = Number.parseInt(localStorage.getItem(`${storageKey}.startedAt`) || "", 10);
+      return Number.isFinite(value) && value > 0 ? value : Date.now();
+    }
+
+    function clearActiveJob(storageKey) {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(`${storageKey}.startedAt`);
+    }
+
+    function rememberResultJob(storageKey, jobId) {
+      if (jobId) {
+        localStorage.setItem(storageKey, jobId);
+      }
+    }
+
+    function clearStoredResult(storageKey, card) {
+      localStorage.removeItem(storageKey);
+      clearResultCard(card);
+    }
+
+    function restoreResultJob(path, type, storageKey, card, defaultFileName) {
+      const jobId = localStorage.getItem(storageKey);
+      if (!jobId) {
+        return;
+      }
+
+      const socket = new WebSocket(buildWsUrl(path));
+      let restored = false;
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type,
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "result") {
+          restored = true;
+          showResultCard(card, data.fileBase64, data.fileName || defaultFileName);
+          socket.close();
+          return;
+        }
+        if (data.type === "error") {
+          localStorage.removeItem(storageKey);
+          socket.close();
+          return;
+        }
+        if (data.type === "progress" || data.type === "auth") {
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (!restored && !localStorage.getItem(storageKey)) {
+          clearResultCard(card);
+        }
+      });
+    }
+
+    function cancelJob(path, type, storageKey, handlers) {
+      const jobId = localStorage.getItem(storageKey);
+      if (!jobId) {
+        handlers.onCancel();
+        handlers.setBusy(false);
+        return;
+      }
+
+      handlers.setBusy(true);
+      const socket = new WebSocket(buildWsUrl(path));
+      let received = false;
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type,
+          jobId,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        received = true;
+        const data = JSON.parse(event.data);
+        if (data.type === "error") {
+          clearActiveJob(storageKey);
+          handlers.onCancel(data.message || "Операция отменена.");
+          handlers.setBusy(false);
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        handlers.setBusy(false);
+      });
+
+      socket.addEventListener("close", () => {
+        if (!received) {
+          handlers.setBusy(false);
+        }
+      });
+    }
+
+    function submitUpdatedToken(path, type, storageKey, input, handlers) {
+      const jobId = localStorage.getItem(storageKey);
+      const sessionKey = input.value.trim();
+      if (!jobId) {
+        handlers.setStatus("Не нашел активную задачу для продолжения.");
+        return;
+      }
+      if (!sessionKey) {
+        handlers.setStatus("Введите новый SESSION.");
+        return;
+      }
+
+      const socket = new WebSocket(buildWsUrl(path));
+      handlers.setStatus("Отправляю новый SESSION...");
+
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({
+          type,
+          jobId,
+          sessionKey,
+          ownerToken: getPdfOwnerToken()
+        }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "token") {
+          handlers.setPaused(false);
+          handlers.setBusy(true);
+          clearAuthAlert(authAlertForInput(input));
+          handlers.setStatus(data.message || "SESSION обновлен, продолжаю.");
+          socket.close();
+          return;
+        }
+        if (data.type === "error") {
+          handlers.setStatus(data.message || "Не удалось обновить SESSION.");
+          socket.close();
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        handlers.setStatus("Ошибка соединения при обновлении SESSION.");
+      });
+    }
+
+    function showAuthAlert(element, message) {
+      element.textContent = message;
+      element.classList.add("show");
+    }
+
+    function clearAuthAlert(element) {
+      if (!element) {
+        return;
+      }
+      element.textContent = "";
+      element.classList.remove("show");
+    }
+
+    function authAlertForInput(input) {
+      if (input === sessionKeyInput) {
+        return sessionAuthAlert;
+      }
+      if (input === execSessionKeyInput) {
+        return execSessionAuthAlert;
+      }
+      if (input === pdfSessionKeyInput) {
+        return pdfSessionAuthAlert;
+      }
+      if (input === requestSessionKeyInput) {
+        return requestSessionAuthAlert;
+      }
+      return null;
+    }
+
+    function authPausedStatusText() {
+      return "Последняя операция не завершилась: SESSION стал невалидным.\nВставьте новый SESSION и нажмите “Продолжить”, чтобы продолжить с места остановки. Либо отмените операцию и запустите новую.";
+    }
+
+    function authPausedSummaryText() {
+      return "Поля задачи временно заблокированы. Доступны только обновление SESSION, продолжение или отмена.";
+    }
+
+    function handleCheckAuth(data) {
+      rememberActiveJob(checkActiveJobKey, data.jobId || localStorage.getItem(checkActiveJobKey) || "", activeJobStartedAt(checkActiveJobKey));
+      setCheckAuthPaused(true);
+      showAuthAlert(sessionAuthAlert, data.message || "SESSION больше не валиден. Обновите токен, чтобы продолжить.");
+      setStatus(authPausedStatusText(), false, false, true);
+      summaryBox.textContent = authPausedSummaryText();
+    }
+
+    function handleExecAuth(data) {
+      rememberActiveJob(execActiveJobKey, data.jobId || localStorage.getItem(execActiveJobKey) || "", activeJobStartedAt(execActiveJobKey));
+      setExecAuthPaused(true);
+      showAuthAlert(execSessionAuthAlert, data.message || "SESSION больше не валиден. Обновите токен, чтобы продолжить.");
+      setExecStatus(authPausedStatusText(), false, true);
+      execStatusBox.classList.add("warn");
+      execSummaryBox.textContent = authPausedSummaryText();
+    }
+
+    function handlePdfAuth(data) {
+      rememberActiveJob(pdfActiveJobKey, data.jobId || localStorage.getItem(pdfActiveJobKey) || "", activeJobStartedAt(pdfActiveJobKey));
+      setPdfAuthPaused(true);
+      showAuthAlert(pdfSessionAuthAlert, data.message || "SESSION больше не валиден. Обновите токен, чтобы продолжить.");
+      setPdfStatus(authPausedStatusText(), false, false, true);
+      pdfSummaryBox.textContent = authPausedSummaryText();
+    }
+
+    function handleRequestAuth(data) {
+      rememberActiveJob(requestActiveJobKey, data.jobId || localStorage.getItem(requestActiveJobKey) || "", activeJobStartedAt(requestActiveJobKey));
+      setRequestAuthPaused(true);
+      showAuthAlert(requestSessionAuthAlert, data.message || "SESSION больше не валиден. Обновите токен, чтобы продолжить.");
+      setRequestStatus(authPausedStatusText(), false, false, true);
+      requestSummaryBox.textContent = authPausedSummaryText();
+    }
+
+    function setCheckAuthPaused(isPaused) {
+      checkAuthPaused = isPaused;
+      if (!isPaused) {
+        clearAuthAlert(sessionAuthAlert);
+      }
+      startButton.textContent = isPaused ? "Продолжить" : "Запустить выгрузку";
+      startButton.hidden = false;
+      startButton.disabled = false;
+      cancelButton.hidden = !isPaused;
+      cancelButton.disabled = !isPaused;
+      sessionKeyInput.disabled = false;
+      sourceFileInput.disabled = isPaused;
+      selectAllInput.disabled = isPaused;
+      optionInputs.forEach((input) => {
+        input.disabled = isPaused;
+      });
+    }
+
+    function setExecAuthPaused(isPaused) {
+      execAuthPaused = isPaused;
+      if (!isPaused) {
+        clearAuthAlert(execSessionAuthAlert);
+      }
+      execStartButton.textContent = isPaused ? "Продолжить" : "Запустить выгрузку";
+      execStartButton.hidden = false;
+      execStartButton.disabled = false;
+      execCancelButton.hidden = !isPaused;
+      execCancelButton.disabled = !isPaused;
+      execSessionKeyInput.disabled = false;
+      execStatusesSelect.disabled = isPaused;
+    }
+
+    function setPdfAuthPaused(isPaused) {
+      pdfAuthPaused = isPaused;
+      if (!isPaused) {
+        clearAuthAlert(pdfSessionAuthAlert);
+      }
+      pdfStartButton.textContent = isPaused ? "Продолжить" : "Сформировать XLSX";
+      pdfStartButton.hidden = false;
+      pdfStartButton.disabled = false;
+      pdfCancelButton.hidden = !isPaused;
+      pdfCancelButton.disabled = !isPaused;
+      pdfSessionKeyInput.disabled = false;
+      pdfSourceFileInput.disabled = isPaused;
+      pdfWorkersCountInput.disabled = true;
+    }
+
+    function setRequestAuthPaused(isPaused) {
+      requestAuthPaused = isPaused;
+      if (!isPaused) {
+        clearAuthAlert(requestSessionAuthAlert);
+      }
+      requestStartButton.textContent = isPaused ? "Продолжить" : "Сформировать XLSX";
+      requestStartButton.hidden = false;
+      requestStartButton.disabled = false;
+      requestCancelButton.hidden = !isPaused;
+      requestCancelButton.disabled = !isPaused;
+      requestSessionKeyInput.disabled = false;
+      requestSourceFileInput.disabled = isPaused;
+      requestWorkersCountInput.disabled = true;
+    }
+
+    function setBusy(isBusy) {
+      if (checkAuthPaused) {
+        setCheckAuthPaused(true);
+        return;
+      }
+      startButton.hidden = isBusy;
+      startButton.disabled = isBusy;
+      cancelButton.hidden = !isBusy;
+      cancelButton.disabled = !isBusy;
+      sessionKeyInput.disabled = isBusy;
+      sourceFileInput.disabled = isBusy;
+      selectAllInput.disabled = isBusy;
+      optionInputs.forEach((input) => {
+        input.disabled = isBusy;
+      });
+    }
+
+    function setExecBusy(isBusy) {
+      if (execAuthPaused) {
+        setExecAuthPaused(true);
+        return;
+      }
+      execStartButton.hidden = isBusy;
+      execStartButton.disabled = isBusy;
+      execCancelButton.hidden = !isBusy;
+      execCancelButton.disabled = !isBusy;
+      execSessionKeyInput.disabled = isBusy;
+      execStatusesSelect.disabled = isBusy;
+    }
+
+    function setPdfBusy(isBusy) {
+      if (pdfAuthPaused) {
+        setPdfAuthPaused(true);
+        return;
+      }
+      pdfStartButton.hidden = isBusy;
+      pdfStartButton.disabled = isBusy;
+      pdfCancelButton.hidden = !isBusy;
+      pdfCancelButton.disabled = !isBusy;
+      pdfSessionKeyInput.disabled = isBusy;
+      pdfSourceFileInput.disabled = isBusy;
+      pdfWorkersCountInput.disabled = true;
+    }
+
+    function setErdBusy(isBusy) {
+      erdStartButton.hidden = isBusy;
+      erdStartButton.disabled = isBusy;
+      erdCancelButton.hidden = !isBusy;
+      erdCancelButton.disabled = !isBusy;
+      erdSourceFileInput.disabled = isBusy;
+      erdWorkersCountInput.disabled = true;
+    }
+
+    function setRequestBusy(isBusy) {
+      if (requestAuthPaused) {
+        setRequestAuthPaused(true);
+        return;
+      }
+      requestStartButton.hidden = isBusy;
+      requestStartButton.disabled = isBusy;
+      requestCancelButton.hidden = !isBusy;
+      requestCancelButton.disabled = !isBusy;
+      requestSessionKeyInput.disabled = isBusy;
+      requestSourceFileInput.disabled = isBusy;
+      requestWorkersCountInput.disabled = true;
+    }
+
+    function collectOptions() {
+      const options = {};
+      optionInputs.forEach((input) => {
+        options[input.dataset.key] = input.checked;
+      });
+      return options;
+    }
+
+    function setStatus(text, isError = false, isOk = false, isWarn = false) {
+      statusBox.textContent = text;
+      statusBox.classList.toggle("error", isError);
+      statusBox.classList.toggle("ok", isOk && !isError);
+      statusBox.classList.toggle("warn", isWarn && !isError && !isOk);
+    }
+
+    function setExecStatus(text, isError = false, isWarn = false) {
+      execStatusBox.textContent = text;
+      execStatusBox.classList.toggle("error", isError);
+      execStatusBox.classList.toggle("ok", false);
+      execStatusBox.classList.toggle("warn", isWarn && !isError);
+    }
+
+    function setPdfStatus(text, isError = false, isOk = false, isWarn = false) {
+      pdfStatusBox.textContent = text;
+      pdfStatusBox.classList.toggle("error", isError);
+      pdfStatusBox.classList.toggle("ok", isOk && !isError);
+      pdfStatusBox.classList.toggle("warn", isWarn && !isError && !isOk);
+    }
+
+    function setErdStatus(text, isError = false, isOk = false) {
+      erdStatusBox.textContent = text;
+      erdStatusBox.classList.toggle("error", isError);
+      erdStatusBox.classList.toggle("ok", isOk && !isError);
+      erdStatusBox.classList.toggle("warn", false);
+    }
+
+    function setRequestStatus(text, isError = false, isOk = false, isWarn = false) {
+      requestStatusBox.textContent = text;
+      requestStatusBox.classList.toggle("error", isError);
+      requestStatusBox.classList.toggle("ok", isOk && !isError);
+      requestStatusBox.classList.toggle("warn", isWarn && !isError && !isOk);
+    }
+
+    function appendExecLog(text) {
+      const message = formatExecLogMessage(text);
+      if (!message) {
+        return;
+      }
+      const current = execStatusBox.textContent === "Ожидание запуска." || execStatusBox.textContent === "Подключаюсь к серверу..."
+        ? ""
+        : execStatusBox.textContent + "\n";
+      execStatusBox.textContent = current + message;
+      execStatusBox.scrollTop = execStatusBox.scrollHeight;
+      execStatusBox.classList.remove("error");
+      execStatusBox.classList.remove("warn");
+    }
+
+    function appendPdfLog(text) {
+      const current = pdfStatusBox.textContent === "Ожидание запуска." || pdfStatusBox.textContent === "Подключаюсь к серверу..."
+        ? ""
+        : pdfStatusBox.textContent + "\n";
+      pdfStatusBox.textContent = current + text;
+      pdfStatusBox.scrollTop = pdfStatusBox.scrollHeight;
+      pdfStatusBox.classList.remove("error");
+      pdfStatusBox.classList.remove("warn");
+    }
+
+    function appendErdLog(text) {
+      const current = erdStatusBox.textContent === "Ожидание запуска." || erdStatusBox.textContent === "Подключаюсь к серверу..."
+        ? ""
+        : erdStatusBox.textContent + "\n";
+      erdStatusBox.textContent = current + text;
+      erdStatusBox.scrollTop = erdStatusBox.scrollHeight;
+      erdStatusBox.classList.remove("error");
+      erdStatusBox.classList.remove("warn");
+    }
+
+    function appendRequestLog(text) {
+      const current = requestStatusBox.textContent === "Ожидание запуска." || requestStatusBox.textContent === "Подключаюсь к серверу..."
+        ? ""
+        : requestStatusBox.textContent + "\n";
+      requestStatusBox.textContent = current + text;
+      requestStatusBox.scrollTop = requestStatusBox.scrollHeight;
+      requestStatusBox.classList.remove("error");
+      requestStatusBox.classList.remove("warn");
+    }
+
+    function normalizeExecProgressStage(value) {
+      const text = String(value || "").trim();
+      if (!text || text.length > 120 || text.includes("curl ") || text.startsWith("[DEBUG]")) {
+        return "Выгрузка";
+      }
+      if (text === "Подготовка") {
+        return "Подготовка";
+      }
+      if (text.startsWith("Планирование ")) {
+        return "Поиск доступных записей";
+      }
+      if (text.startsWith("Выгрузка ")) {
+        return "Выгрузка Excel-файлов";
+      }
+      if (text.startsWith("Скачивание ")) {
+        return "Скачивание промежуточных файлов";
+      }
+      if (text.startsWith("Status ") && text.endsWith(" готов")) {
+        return "Выгрузка по статусу завершена";
+      }
+      return text;
+    }
+
+    function restoreExecLog(logs) {
+      if (!Array.isArray(logs) || logs.length === 0) {
+        return;
+      }
+      const messages = logs
+        .map((line) => formatExecLogMessage(line))
+        .filter(Boolean);
+      if (messages.length === 0) {
+        return;
+      }
+      execStatusBox.textContent = messages.join("\n");
+      execStatusBox.scrollTop = execStatusBox.scrollHeight;
+      execStatusBox.classList.remove("error");
+      execStatusBox.classList.remove("warn");
+    }
+
+    function formatExecLogMessage(value) {
+      const text = String(value || "").trim();
+      if (!text) {
+        return "";
+      }
+      if (text.startsWith("[DEBUG]") || text.includes("Search curl:")) {
+        return "";
+      }
+      if (text.startsWith("[INFO] searchId:")) {
+        return "";
+      }
+
+      let match = text.match(/^\[INFO\] Error log file: (.+)$/);
+      if (match) {
+        return `Журнал ошибок: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Status (.+) full page totalElements: (\d+)$/);
+      if (match) {
+        return `Найдено записей (${formatExecStatusLabel(match[1])}): ${match[2]}`;
+      }
+      match = text.match(/^\[INFO\] Found totalElements: (\d+)$/);
+      if (match) {
+        return `Найдено записей в диапазоне: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Split range (.+) \((.*) - (.*)\), totalElements=(\d+)$/);
+      if (match) {
+        return `Диапазон ${formatExecRangeLabel(match[1])} разбит на части: ${match[4]} записей`;
+      }
+      match = text.match(/^\[INFO\] Planned ranges for status (.+) before compact: (\d+)$/);
+      if (match) {
+        return `Подготовлено диапазонов (${formatExecStatusLabel(match[1])}): ${match[2]}`;
+      }
+      match = text.match(/^\[INFO\] Planned ranges for status (.+) after compact: (\d+)$/);
+      if (match) {
+        return `Диапазонов после объединения (${formatExecStatusLabel(match[1])}): ${match[2]}`;
+      }
+      match = text.match(/^\[INFO\] Compacted ranges for status (.+): (\d+) -> (\d+)$/);
+      if (match) {
+        return `Диапазоны оптимизированы (${formatExecStatusLabel(match[1])}): ${match[2]} -> ${match[3]}`;
+      }
+      match = text.match(/^\[INFO\] Downloaded: (.+)$/);
+      if (match) {
+        return `Скачан промежуточный файл: ${formatFileName(match[1])}`;
+      }
+      match = text.match(/^\[INFO\] Exported rows: (\d+)$/);
+      if (match) {
+        return `Выгружено строк: ${match[1]}`;
+      }
+      if (text === "[INFO] Merging Excel files...") {
+        return "Собираю итоговый Excel-файл...";
+      }
+      match = text.match(/^\[INFO\] Removing duplicates\.\.\. removed: (\d+)$/);
+      if (match) {
+        return `Удалены дубли: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Full page totalElements: (\d+)$/);
+      if (match) {
+        return `Всего найдено записей: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Leaf range totalElements: (\d+)$/);
+      if (match) {
+        return `Записей в итоговых диапазонах: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Exported rows before merge dedupe: (\d+)$/);
+      if (match) {
+        return `Строк до удаления дублей: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Final rows after dedupe: (\d+)$/);
+      if (match) {
+        return `Итоговых строк: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Skipped ranges: (\d+)$/);
+      if (match) {
+        return `Пропущено диапазонов: ${match[1]}`;
+      }
+      match = text.match(/^\[INFO\] Saved (.+)$/);
+      if (match) {
+        return `Итоговый файл сохранён: ${formatFileName(match[1])}`;
+      }
+      match = text.match(/^\[INFO\] Removed intermediate files: (\d+)$/);
+      if (match) {
+        return `Промежуточные файлы удалены: ${match[1]}`;
+      }
+      match = text.match(/^\[WARN\] Cleanup failed after removing (\d+) files: (.+)$/);
+      if (match) {
+        return `Не удалось удалить часть промежуточных файлов. Удалено: ${match[1]}. ${match[2]}`;
+      }
+      match = text.match(/^\[WARN\] Range (.+) exported more rows than search totalElements: totalElements=(\d+) exportedRows=(\d+)$/);
+      if (match) {
+        return `Предупреждение: диапазон ${formatExecRangeLabel(match[1])} выгрузил больше строк, чем ожидалось (${match[3]} вместо ${match[2]}).`;
+      }
+      match = text.match(/^\[WARN\] Range (.+) may be truncated: totalElements=(\d+) exportedRows=(\d+)$/);
+      if (match) {
+        return `Предупреждение: диапазон ${formatExecRangeLabel(match[1])} мог выгрузиться не полностью (${match[3]} из ${match[2]}).`;
+      }
+      match = text.match(/^\[ERROR\] Skipped (.+)$/);
+      if (match) {
+        return `Ошибка в диапазоне, он пропущен: ${match[1]}`;
+      }
+      return text.replace(/^\[(INFO|WARN|ERROR)\]\s*/, "");
+    }
+
+    function formatExecStatusLabel(value) {
+      const text = String(value || "").trim();
+      if (text === "all" || text === "") {
+        return "все статусы";
+      }
+      const labels = {
+        "1": "на исполнении",
+        "2": "отказано в возбуждении",
+        "3": "возврат без исполнения",
+        "50": "окончено",
+        "51": "приостановлено",
+        "52": "направлено по территории"
+      };
+      return labels[text] || `статус ${text}`;
+    }
+
+    function formatExecRangeLabel(value) {
+      return String(value || "").replaceAll("_", ".").replace(/^all\.dates$/, "все даты");
+    }
+
+    function formatFileName(value) {
+      return String(value || "").split(/[\\/]/).pop() || String(value || "");
+    }
+
+    function setProgress(value) {
+      progressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function setExecProgress(value) {
+      execProgressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function setPdfProgress(value) {
+      pdfProgressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function setErdProgress(value) {
+      erdProgressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function setRequestProgress(value) {
+      requestProgressBar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+
+    function renderCheckProgress(progress, startedAt) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingText = progress.remainingMs === null ? "считаю..." : formatDuration(progress.remainingMs);
+      const total = progress.total || 0;
+      const current = progress.current || 0;
+      const percent = progress.percent || 0;
+      const failed = progress.failed || 0;
+
+      setProgress(percent);
+      summaryBox.textContent = `${percent}% • ${current}/${total} • ошибок: ${failed} • прошло ${formatDuration(elapsedMs)} • осталось ${remainingText}`;
+    }
+
+    function renderExecProgress(progress, startedAt) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingText = progress.remainingMs === null ? "считаю..." : formatDuration(progress.remainingMs);
+      const total = progress.total || 0;
+      const current = progress.current || 0;
+      const percent = progress.percent || 0;
+      const stage = progress.stage || "Выгрузка";
+
+      setExecProgress(percent);
+      execSummaryBox.textContent = `${stage} • ${percent}% • ${current}/${total} • прошло ${formatDuration(elapsedMs)} • осталось ${remainingText}`;
+    }
+
+    function renderPdfProgress(progress, startedAt) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingText = progress.remainingMs === null ? "считаю..." : formatDuration(progress.remainingMs);
+      const total = progress.total || 0;
+      const current = progress.current || 0;
+      const percent = progress.percent || 0;
+      const documents = progress.documents || 0;
+      const failed = progress.failed || 0;
+
+      setPdfProgress(percent);
+      pdfSummaryBox.textContent = `${percent}% • ${current}/${total} • названий: ${documents} • ошибок: ${failed} • прошло ${formatDuration(elapsedMs)} • осталось ${remainingText}`;
+    }
+
+    function renderErdProgress(progress, startedAt) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingText = progress.remainingMs === null ? "считаю..." : formatDuration(progress.remainingMs);
+      const total = progress.total || 0;
+      const current = progress.current || 0;
+      const percent = progress.percent || 0;
+      const details = progress.details || 0;
+      const failed = progress.failed || 0;
+
+      setErdProgress(percent);
+      erdSummaryBox.textContent = `${percent}% • ${current}/${total} • detail-строк: ${details} • ошибок: ${failed} • прошло ${formatDuration(elapsedMs)} • осталось ${remainingText}`;
+    }
+
+    function renderRequestProgress(progress, startedAt) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingText = progress.remainingMs === null ? "считаю..." : formatDuration(progress.remainingMs);
+      const total = progress.total || 0;
+      const current = progress.current || 0;
+      const percent = progress.percent || 0;
+      const found = progress.found || 0;
+      const failed = progress.failed || 0;
+
+      setRequestProgress(percent);
+      requestSummaryBox.textContent = `${percent}% • ${current}/${total} • найдено ИП: ${found} • ошибок: ${failed} • прошло ${formatDuration(elapsedMs)} • осталось ${remainingText}`;
+    }
+
+    function formatDuration(ms) {
+      const totalSeconds = Math.max(0, Math.round(ms / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      if (minutes <= 0) {
+        return `${seconds} сек`;
+      }
+      return `${minutes} мин ${String(seconds).padStart(2, "0")} сек`;
+    }
+
+    function buildWsUrl(path) {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${location.host}${path}`;
+    }
+
+	    function readFileAsBase64(file) {
+	      return new Promise((resolve, reject) => {
+	        const reader = new FileReader();
+	        reader.onload = () => {
+          const result = String(reader.result || "");
+          const commaIndex = result.indexOf(",");
+          resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+        };
+        reader.onerror = () => reject(new Error("Не удалось прочитать файл."));
+	        reader.readAsDataURL(file);
+	      });
+	    }
+
+	    function showResultCard(card, base64, fileName) {
+	      if (!card || !base64) {
+	        return;
+	      }
+	      clearResultCard(card);
+	      const blob = base64ToBlob(base64, fileName);
+	      const url = URL.createObjectURL(blob);
+	      card.dataset.objectUrl = url;
+	      card.hidden = false;
+	      card.classList.add("show");
+
+	      const title = document.createElement("div");
+	      title.className = "result-title";
+	      title.textContent = "Результат последней операции";
+
+	      const file = document.createElement("div");
+	      file.className = "result-file";
+	      file.textContent = fileName;
+
+	      const info = document.createElement("div");
+	      info.className = "result-info";
+	      info.append(title, file);
+
+	      const button = document.createElement("button");
+	      button.type = "button";
+	      button.className = "result-download";
+	      button.textContent = "Скачать";
+	      button.addEventListener("click", () => {
+	        downloadBlobUrl(url, fileName);
+	      });
+
+	      card.append(info, button);
+	    }
+
+	    function clearResultCard(card) {
+	      if (!card) {
+	        return;
+	      }
+	      const url = card.dataset.objectUrl;
+	      if (url) {
+	        URL.revokeObjectURL(url);
+	        delete card.dataset.objectUrl;
+	      }
+	      card.replaceChildren();
+	      card.classList.remove("show");
+	      card.hidden = true;
+	    }
+
+	    function base64ToBlob(base64, fileName) {
+	      const binary = atob(base64);
+	      const bytes = new Uint8Array(binary.length);
+	      for (let i = 0; i < binary.length; i += 1) {
+	        bytes[i] = binary.charCodeAt(i);
+	      }
+
+	      const type = fileName.toLowerCase().endsWith(".json")
+	        ? "application/json"
+	        : fileName.toLowerCase().endsWith(".zip")
+	          ? "application/zip"
+	          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+	      return new Blob([bytes], { type });
+	    }
+
+	    function downloadBlobUrl(url, fileName) {
+	      const link = document.createElement("a");
+	      link.href = url;
+	      link.download = fileName;
+	      document.body.appendChild(link);
+	      link.click();
+	      link.remove();
+	    }
+  </script>
+</body>
+</html>

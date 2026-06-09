@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PDF_PARSE_API_URL: http://pdf-api:8890/api/parse-pdf
+      PORT: "8888"
+    ports:
+      - "8888:8888"
+    depends_on:
+      pdf-api:
+        condition: service_healthy
+
+  pdf-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.pdf-api
+    expose:
+      - "8890"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8890/', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s

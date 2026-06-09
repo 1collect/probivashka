@@ -1,0 +1,15 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+	PYTHONUNBUFFERED=1
+
+COPY requirements.pdf-api.txt ./
+RUN pip install --no-cache-dir -r requirements.pdf-api.txt
+
+COPY execproc_search.py /app/execproc_search.py
+
+EXPOSE 8890
+
+CMD ["python", "/app/execproc_search.py", "--serve", "--host", "0.0.0.0", "--port", "8890"]
