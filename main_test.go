@@ -96,11 +96,11 @@ func TestNormalizePDFParseAPIWorkers(t *testing.T) {
 	}
 }
 
-func TestLatestRequestStatusEntryUsesNewestResponseDate(t *testing.T) {
+func TestLatestRequestStatusEntryUsesNewestCreatedDate(t *testing.T) {
 	entries := []requestStatusEntry{
-		{Request: "Обязательные пенсионные отчисления", State: "старый", ResponseDate: "2025-04-08T17:52:11.700+05:00"},
-		{Request: "Выплата пенсий и пособий", State: "другой", ResponseDate: "2026-05-08T18:02:09.704+05:00"},
-		{Request: "Обязательные пенсионные отчисления", State: "новый", ResponseDate: "2026-05-09T00:04:19.622+05:00"},
+		{Request: "Обязательные пенсионные отчисления", State: "старый", CreatedDate: "2025-04-08T17:52:11.700+05:00", ResponseDate: "2026-05-09T00:04:19.622+05:00"},
+		{Request: "Выплата пенсий и пособий", State: "другой", CreatedDate: "2026-05-08T18:02:09.704+05:00", ResponseDate: "2026-05-08T18:02:09.704+05:00"},
+		{Request: "Обязательные пенсионные отчисления", State: "новый", CreatedDate: "2026-05-09T00:04:19.622+05:00", ResponseDate: "2025-04-08T17:52:11.700+05:00"},
 	}
 
 	latest, ok := latestRequestStatusEntry(entries, "Обязательные пенсионные отчисления")

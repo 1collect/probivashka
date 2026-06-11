@@ -375,6 +375,7 @@ type requestStatusJob struct {
 type requestStatusEntry struct {
 	Request      string `json:"request"`
 	State        string `json:"state"`
+	CreatedDate  string `json:"createdDate"`
 	ResponseDate string `json:"responseDate"`
 }
 
@@ -1219,10 +1220,10 @@ func runRequestStatusJob(jobID string, numbers []string, workers int) {
 			result.Number,
 			zeroIfEmpty(result.Pension.Request),
 			zeroIfEmpty(result.Pension.State),
-			zeroIfEmpty(formatDisplayDate(result.Pension.ResponseDate)),
+			zeroIfEmpty(formatDisplayDate(result.Pension.CreatedDate)),
 			zeroIfEmpty(result.Benefit.Request),
 			zeroIfEmpty(result.Benefit.State),
-			zeroIfEmpty(formatDisplayDate(result.Benefit.ResponseDate)),
+			zeroIfEmpty(formatDisplayDate(result.Benefit.CreatedDate)),
 		}
 		rows = append(rows, row)
 	}
@@ -3430,15 +3431,15 @@ func newerRequestStatusEntry(current, candidate requestStatusEntry) requestStatu
 }
 
 func requestStatusEntryAfter(left, right requestStatusEntry) bool {
-	leftTime, leftOK := parseAdiletDateTime(left.ResponseDate)
-	rightTime, rightOK := parseAdiletDateTime(right.ResponseDate)
+	leftTime, leftOK := parseAdiletDateTime(left.CreatedDate)
+	rightTime, rightOK := parseAdiletDateTime(right.CreatedDate)
 	if leftOK && rightOK {
 		return leftTime.After(rightTime)
 	}
 	if leftOK != rightOK {
 		return leftOK
 	}
-	return strings.TrimSpace(left.ResponseDate) > strings.TrimSpace(right.ResponseDate)
+	return strings.TrimSpace(left.CreatedDate) > strings.TrimSpace(right.CreatedDate)
 }
 
 func parseAdiletDateTime(value string) (time.Time, bool) {
