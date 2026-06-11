@@ -4084,7 +4084,7 @@ func buildUnhandledFileName() string {
 }
 
 func datedXLSXFileName(base string) string {
-	return fmt.Sprintf("%s_%s.xlsx", safeFileName(base), time.Now().Format("20060102"))
+	return fmt.Sprintf("%s_%s.xlsx", safeFileName(base), time.Now().Format("20060102_150405"))
 }
 
 func datedExecProcResultFileName(statuses []string) string {
@@ -4096,7 +4096,7 @@ func datedExecProcResultFileName(statuses []string) string {
 		}
 		statusLabel = strings.Join(statusNames, "-")
 	}
-	return fmt.Sprintf("result_%s_%s.xlsx", safeFileName(statusLabel), time.Now().Format("20060102"))
+	return fmt.Sprintf("result_%s_%s.xlsx", safeFileName(statusLabel), time.Now().Format("20060102_150405"))
 }
 
 func execProcStatusFileNameLabel(status string) string {
