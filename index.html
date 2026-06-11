@@ -680,6 +680,28 @@
     const execSessionStorageKey = "probivashka.execSession";
     const pdfSessionStorageKey = "probivashka.pdfSession";
     const requestSessionStorageKey = "probivashka.requestSession";
+
+    function downloadDateStamp() {
+      const now = new Date();
+      const year = String(now.getFullYear());
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${year}${month}${day}`;
+    }
+
+    function datedXlsxFileName(base) {
+      return `${base}_${downloadDateStamp()}.xlsx`;
+    }
+
+    function selectedExecStatusName() {
+      const selected = execStatusesSelect.selectedOptions[0];
+      return (selected ? selected.textContent.trim() : "") || "Все";
+    }
+
+    function execResultFileName(statusName) {
+      return `result_${statusName || "Все"}_${downloadDateStamp()}.xlsx`;
+    }
+
     let checkAuthPaused = false;
     let execAuthPaused = false;
     let pdfAuthPaused = false;
@@ -898,7 +920,7 @@
 	            setStatus(`Готово. Успешно: ${data.processed}, ошибок: ${data.failed}.`, false, true);
 	            summaryBox.textContent = "Файл с результатом готов.";
 	            rememberResultJob(checkResultJobKey, data.jobId || localStorage.getItem(checkActiveJobKey));
-	            showResultCard(checkResultCard, data.fileBase64, data.fileName || "results.xlsx");
+	            showResultCard(checkResultCard, data.fileBase64, data.fileName || datedXlsxFileName("results"));
 	            clearActiveJob(checkActiveJobKey);
             setCheckAuthPaused(false);
             setBusy(false);
@@ -957,6 +979,7 @@
 
       const sessionKey = execSessionKeyInput.value.trim();
       const status = execStatusesSelect.value;
+      const outputFile = execResultFileName(selectedExecStatusName());
       const startedAt = Date.now();
       let execTimer = null;
       let lastExecProgress = {
@@ -988,6 +1011,7 @@
           type: "execproc-start",
           sessionKey,
           statuses: status ? [status] : [],
+          outputFile,
           ownerToken: getPdfOwnerToken()
         }));
       });
@@ -1038,7 +1062,7 @@
 	          execStatusBox.classList.add("ok");
 	          execSummaryBox.textContent = "Итоговый файл готов.";
 	          rememberResultJob(execResultJobKey, data.jobId || localStorage.getItem(execActiveJobKey));
-	          showResultCard(execResultCard, data.fileBase64, data.fileName || "result.xlsx");
+	          showResultCard(execResultCard, data.fileBase64, data.fileName || outputFile);
 	          clearActiveJob(execActiveJobKey);
           setExecAuthPaused(false);
           setExecBusy(false);
@@ -1193,7 +1217,7 @@
 	            setPdfStatus(`Готово. Найдено ИП: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
 	            pdfSummaryBox.textContent = "XLSX с новыми колонками готов.";
 	            rememberResultJob(pdfResultJobKey, data.jobId || localStorage.getItem(pdfActiveJobKey));
-	            showResultCard(pdfResultCard, data.fileBase64, data.fileName || "execproc_with_pdf_parse.xlsx");
+	            showResultCard(pdfResultCard, data.fileBase64, data.fileName || datedXlsxFileName("execproc_with_pdf_parse"));
 	            clearActiveJob(pdfActiveJobKey);
             setPdfAuthPaused(false);
             setPdfBusy(false);
@@ -1325,7 +1349,7 @@
 	            setErdStatus(`Готово. Детальных строк: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
 	            erdSummaryBox.textContent = "XLSX с деталями ЕРД готов.";
 	            rememberResultJob(erdResultJobKey, data.jobId || localStorage.getItem(erdActiveJobKey));
-	            showResultCard(erdResultCard, data.fileBase64, data.fileName || "debtor_erd_details.xlsx");
+	            showResultCard(erdResultCard, data.fileBase64, data.fileName || datedXlsxFileName("debtor_erd_details"));
 	            clearActiveJob(erdActiveJobKey);
             setErdBusy(false);
             socket.close();
@@ -1480,7 +1504,7 @@
             setRequestStatus(`Готово. Обработано: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
             requestSummaryBox.textContent = "XLSX с последними статусами запросов готов.";
             rememberResultJob(requestResultJobKey, data.jobId || localStorage.getItem(requestActiveJobKey));
-            showResultCard(requestResultCard, data.fileBase64, data.fileName || "execdoc_request_statuses.xlsx");
+            showResultCard(requestResultCard, data.fileBase64, data.fileName || datedXlsxFileName("execdoc_request_statuses"));
             clearActiveJob(requestActiveJobKey);
             setRequestAuthPaused(false);
             setRequestBusy(false);
@@ -1560,11 +1584,11 @@
       if (activeRequestJobId) {
         resumeRequestJob(activeRequestJobId);
       }
-	      restoreResultJob("/ws", "check-watch", checkResultJobKey, checkResultCard, "results.xlsx");
-	      restoreResultJob("/execproc-ws", "execproc-watch", execResultJobKey, execResultCard, "result.xlsx");
-	      restoreResultJob("/pdf-titles-ws", "pdf-titles-watch", pdfResultJobKey, pdfResultCard, "execproc_with_pdf_parse.xlsx");
-	      restoreResultJob("/debtor-erd-ws", "debtor-erd-watch", erdResultJobKey, erdResultCard, "debtor_erd_details.xlsx");
-      restoreResultJob("/request-status-ws", "request-status-watch", requestResultJobKey, requestResultCard, "execdoc_request_statuses.xlsx");
+	      restoreResultJob("/ws", "check-watch", checkResultJobKey, checkResultCard, datedXlsxFileName("results"));
+	      restoreResultJob("/execproc-ws", "execproc-watch", execResultJobKey, execResultCard, execResultFileName("Все"));
+	      restoreResultJob("/pdf-titles-ws", "pdf-titles-watch", pdfResultJobKey, pdfResultCard, datedXlsxFileName("execproc_with_pdf_parse"));
+	      restoreResultJob("/debtor-erd-ws", "debtor-erd-watch", erdResultJobKey, erdResultCard, datedXlsxFileName("debtor_erd_details"));
+      restoreResultJob("/request-status-ws", "request-status-watch", requestResultJobKey, requestResultCard, datedXlsxFileName("execdoc_request_statuses"));
 	    });
 
     function setActiveTab(tabId) {
@@ -1649,7 +1673,7 @@
 	          setStatus(`Готово. Успешно: ${data.processed}, ошибок: ${data.failed}.`, false, true);
 	          summaryBox.textContent = "Файл с результатом готов.";
 	          rememberResultJob(checkResultJobKey, data.jobId || localStorage.getItem(checkActiveJobKey));
-	          showResultCard(checkResultCard, data.fileBase64, data.fileName || "results.xlsx");
+	          showResultCard(checkResultCard, data.fileBase64, data.fileName || datedXlsxFileName("results"));
 	          clearActiveJob(checkActiveJobKey);
           setCheckAuthPaused(false);
           setBusy(false);
@@ -1738,7 +1762,7 @@
 	          execStatusBox.classList.add("ok");
 	          execSummaryBox.textContent = "Итоговый файл готов.";
 	          rememberResultJob(execResultJobKey, data.jobId || localStorage.getItem(execActiveJobKey));
-	          showResultCard(execResultCard, data.fileBase64, data.fileName || "result.xlsx");
+	          showResultCard(execResultCard, data.fileBase64, data.fileName || execResultFileName("Все"));
 	          clearActiveJob(execActiveJobKey);
           setExecAuthPaused(false);
           setExecBusy(false);
@@ -1839,7 +1863,7 @@
 	          setPdfStatus(`Готово. Найдено ИП: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
 	          pdfSummaryBox.textContent = "XLSX с новыми колонками готов.";
 	          rememberResultJob(pdfResultJobKey, data.jobId || localStorage.getItem(pdfActiveJobKey));
-	          showResultCard(pdfResultCard, data.fileBase64, data.fileName || "execproc_with_pdf_parse.xlsx");
+	          showResultCard(pdfResultCard, data.fileBase64, data.fileName || datedXlsxFileName("execproc_with_pdf_parse"));
 	          clearActiveJob(pdfActiveJobKey);
           setPdfAuthPaused(false);
           setPdfBusy(false);
@@ -1928,7 +1952,7 @@
 	          setErdStatus(`Готово. Детальных строк: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
 	          erdSummaryBox.textContent = "XLSX с деталями ЕРД готов.";
 	          rememberResultJob(erdResultJobKey, data.jobId || localStorage.getItem(erdActiveJobKey));
-	          showResultCard(erdResultCard, data.fileBase64, data.fileName || "debtor_erd_details.xlsx");
+	          showResultCard(erdResultCard, data.fileBase64, data.fileName || datedXlsxFileName("debtor_erd_details"));
 	          clearActiveJob(erdActiveJobKey);
           setErdBusy(false);
           socket.close();
@@ -2024,7 +2048,7 @@
           setRequestStatus(`Готово. Обработано: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
           requestSummaryBox.textContent = "XLSX с последними статусами запросов готов.";
           rememberResultJob(requestResultJobKey, data.jobId || localStorage.getItem(requestActiveJobKey));
-          showResultCard(requestResultCard, data.fileBase64, data.fileName || "execdoc_request_statuses.xlsx");
+          showResultCard(requestResultCard, data.fileBase64, data.fileName || datedXlsxFileName("execdoc_request_statuses"));
           clearActiveJob(requestActiveJobKey);
           setRequestAuthPaused(false);
           setRequestBusy(false);

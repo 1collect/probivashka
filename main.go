@@ -771,7 +771,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	resultMessage := wsMessage{
 		Type:       "result",
 		JobID:      jobID,
-		FileName:   "results.xlsx",
+		FileName:   datedXLSXFileName("results"),
 		FileBase64: base64.StdEncoding.EncodeToString(xlsxBytes),
 		Processed:  processed,
 		Failed:     failed,
@@ -936,7 +936,7 @@ func runPDFJob(jobID string, sourceRows [][]string, jobsToRun []pdfParseJob, wor
 		return
 	}
 
-	finishPDFJobResult(jobID, "execproc_with_pdf_parse.xlsx", base64.StdEncoding.EncodeToString(xlsxBytes), foundProc, failed)
+	finishPDFJobResult(jobID, datedXLSXFileName("execproc_with_pdf_parse"), base64.StdEncoding.EncodeToString(xlsxBytes), foundProc, failed)
 }
 
 func handleDebtorERDWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -1074,7 +1074,7 @@ func runDebtorERDJob(jobID string, iins []string, workers int) {
 		finishPDFJobError(jobID, err.Error())
 		return
 	}
-	finishPDFJobResult(jobID, "debtor_erd_details.xlsx", base64.StdEncoding.EncodeToString(xlsxBytes), details, failed)
+	finishPDFJobResult(jobID, datedXLSXFileName("debtor_erd_details"), base64.StdEncoding.EncodeToString(xlsxBytes), details, failed)
 	_ = processed
 }
 
@@ -1232,7 +1232,7 @@ func runRequestStatusJob(jobID string, numbers []string, workers int) {
 		finishPDFJobError(jobID, err.Error())
 		return
 	}
-	finishPDFJobResult(jobID, "execdoc_request_statuses.xlsx", base64.StdEncoding.EncodeToString(xlsxBytes), processed, failed)
+	finishPDFJobResult(jobID, datedXLSXFileName("execdoc_request_statuses"), base64.StdEncoding.EncodeToString(xlsxBytes), processed, failed)
 }
 
 func normalizeRequestStatusWorkers(value int, total int) int {
@@ -1619,7 +1619,9 @@ func handleExecProcWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	outputFile := strings.TrimSpace(req.OutputFile)
 	if outputFile == "" {
-		outputFile = filepath.Join(downloadDir, "result.xlsx")
+		outputFile = filepath.Join(downloadDir, datedExecProcResultFileName(statuses))
+	} else if filepath.Base(outputFile) == outputFile {
+		outputFile = filepath.Join(downloadDir, outputFile)
 	}
 	createPDFJob(jobID, ownerToken, 100, "Подготовка", req.SessionKey)
 	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: 100, Message: "Задача запущена"})
@@ -4078,6 +4080,41 @@ func firstNonEmpty(values ...string) string {
 
 func buildUnhandledFileName() string {
 	return "unhandled_data_" + time.Now().Format("20060102_150405") + ".json"
+}
+
+func datedXLSXFileName(base string) string {
+	return fmt.Sprintf("%s_%s.xlsx", safeFileName(base), time.Now().Format("20060102"))
+}
+
+func datedExecProcResultFileName(statuses []string) string {
+	statusLabel := "Все"
+	if len(statuses) > 0 {
+		statusNames := make([]string, 0, len(statuses))
+		for _, status := range statuses {
+			statusNames = append(statusNames, execProcStatusFileNameLabel(status))
+		}
+		statusLabel = strings.Join(statusNames, "-")
+	}
+	return fmt.Sprintf("result_%s_%s.xlsx", safeFileName(statusLabel), time.Now().Format("20060102"))
+}
+
+func execProcStatusFileNameLabel(status string) string {
+	switch strings.TrimSpace(status) {
+	case "1":
+		return "На исполнении"
+	case "2":
+		return "Отказано в возбуждении"
+	case "3":
+		return "Возврат без исполнения"
+	case "50":
+		return "Окончено"
+	case "51":
+		return "Приостановлено"
+	case "52":
+		return "Направлено по территории"
+	default:
+		return "Все"
+	}
 }
 
 func isProblemLog(message string) bool {
