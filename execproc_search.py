@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import base64
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import re
@@ -133,7 +134,7 @@ def extract_legal_basis(text: str) -> str:
     return collapse_spaces(loose_fallback.group(0)) if loose_fallback else ""
 
 
-def extract_pdf_text(data: bytes) -> str:
+def extract_pdf_text(data: bytes) -> tuple[str, int]:
     try:
         from pypdf import PdfReader
     except ModuleNotFoundError as exc:
@@ -143,14 +144,19 @@ def extract_pdf_text(data: bytes) -> str:
     parts: list[str] = []
     for page in reader.pages:
         parts.append(page.extract_text() or "")
-    return "\n".join(parts)
+    return "\n".join(parts), len(reader.pages)
 
 
-def parse_pdf(data: bytes) -> dict[str, str]:
-    text = extract_pdf_text(data)
+def parse_pdf(data: bytes) -> dict[str, str | int]:
+    text, page_count = extract_pdf_text(data)
+    normalized_text = normalize_pdf_text(text)
     return {
         "date": extract_decree_date(text),
         "basis": extract_legal_basis(text),
+        "fileSha1": hashlib.sha1(data).hexdigest(),
+        "textSha1": hashlib.sha1(normalized_text.encode("utf-8")).hexdigest(),
+        "pageCount": page_count,
+        "textPreview": collapse_spaces(normalized_text[:700]),
     }
 
 
