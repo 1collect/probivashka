@@ -333,16 +333,16 @@
 <body>
   <main class="page">
     <nav class="tabs" aria-label="Страницы">
-      <button class="tab-button active" type="button" data-tab="page1">Проверка ИП</button>
+      <button class="tab-button active" type="button" data-tab="page1">Выгрузка принятых мер</button>
       <button class="tab-button" type="button" data-tab="page2">Исполнительные производства</button>
-      <button class="tab-button" type="button" data-tab="page3">Названия PDF</button>
-      <button class="tab-button" type="button" data-tab="page6">Названия PDF <span style="color: red;">(new)</span></button>
+      <button class="tab-button" type="button" data-tab="page3">Определение статьи прекращения</button>
+      <button class="tab-button" type="button" data-tab="page6">Определение статьи прекращения <span style="color: red;">(new)</span></button>
       <button class="tab-button" type="button" data-tab="page4">ЕРД по ИИН</button>
-      <button class="tab-button" type="button" data-tab="page5">Запросы ИП</button>
+      <button class="tab-button" type="button" data-tab="page5">Выгрузка ОПО и ВПП</button>
     </nav>
 
     <div class="panel" style="margin-bottom: 16px;">
-      <h1 id="pageTitle">Выгрузка ИП</h1>
+      <h1 id="pageTitle">Выгрузка принятых мер</h1>
       <p id="pageDescription">Загрузите файл с номерами, вставьте ключ сессии и выберите, какие разделы нужно выгрузить.</p>
     </div>
 
@@ -870,13 +870,13 @@
       }
 
       if (tabId === "page3") {
-        pageTitle.textContent = "Названия PDF";
+        pageTitle.textContent = "Определение статьи прекращения";
         pageDescription.textContent = "Загрузите XLSX с номерами в первой колонке, вставьте SESSION и получите исходный файл с двумя новыми колонками: дата постановления и основание.";
         return;
       }
 
       if (tabId === "page6") {
-        pageTitle.textContent = "Названия PDF (обновленный)";
+        pageTitle.textContent = "Определение статьи прекращения (обновленный)";
         pageDescription.textContent = "Загрузите XLSX со строго двумя колонками: исполнительный документ и исполнительное производство. PDF будет найден только в указанном производстве.";
         return;
       }
@@ -888,12 +888,12 @@
       }
 
       if (tabId === "page5") {
-        pageTitle.textContent = "Запросы ИП";
+        pageTitle.textContent = "Выгрузка ОПО и ВПП";
         pageDescription.textContent = "Загрузите XLSX с исполнительными документами в первой колонке. Для каждого номера выполняется поиск на исполнении и выгружаются последние статусы ОПВ и выплат пенсий/пособий.";
         return;
       }
 
-      pageTitle.textContent = "Выгрузка ИП";
+      pageTitle.textContent = "Выгрузка принятых мер";
       pageDescription.textContent = "Загрузите файл с номерами, вставьте ключ сессии и выберите, какие разделы нужно выгрузить.";
     }
 
