@@ -39,6 +39,7 @@ const (
 	defaultPDFParseAPI        = "http://127.0.0.1:8890/api/parse-pdf"
 	defaultPDFParseAPIWorkers = 4
 	maxPDFParseAPIWorkers     = 16
+	defaultExecProcStartDate  = "2000-01-01"
 	execProcUA                = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 Edg/148.0.0.0"
 	debtorUA                  = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
 	defaultERDCaptcha         = "HFOWZlKh9DWSAcCllQF0xBFggaOy00SA8iSw4PYyAXXgohRzY0XRN4aQZCeCJGLwYiMxYNSFVBO2Z-IBVDG3EPeUJIB2kzSgsUemgkfwI7dXBHKHBgNCcSCwgCJUZNC0hNAgU0M2w7BGIBBltwZExASCVuOXdRezF1GCFkPQ8zPzccXlJBSU5gLlprZWNDPFBeNw1CGyxyF0FiGCcjXXVvGAQiOBNHKE99VwF8ShcUSBcLRhU4amQNeQkPKGtjFFUUemgkfwI1aGpTHic3UDASaB9zRhUWGW92QkgdGjMbGC9HAGxIPEZiLGJxCkBDbRlRW0g7a1xlFSdcCVZLSGlgNQMNOzojOX0wQQx6NW9NCl51UTBXWn5tfgY3IhxAM1ZpVwB9XRUUOUlKBjliPnEPeR0ITjZUXQsBGEJ5KFx2MzQOcnBhRUNQPUFVNEJGM05QVxkTYjZgTyUZRAY2YmxyOVpkeCBwKmw3B209ag8zTFVLD1dLUQIWSG5Ae2drbhsnNQ8DYzsUSAI6RCcjXx0yOV1rb3UbbXBwFFJNEQIWPhIdQ3g4bHEPewkILw"
@@ -1760,7 +1761,7 @@ func handleExecProcWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	startDate := strings.TrimSpace(req.StartDate)
 	if startDate == "" {
-		startDate = "2017-01-01"
+		startDate = defaultExecProcStartDate
 	}
 	if _, err := time.Parse("2006-01-02", startDate); err != nil {
 		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "START_DATE должен быть в формате YYYY-MM-DD"})
