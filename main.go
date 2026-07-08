@@ -338,13 +338,13 @@ type fetchResult struct {
 }
 
 type pdfTitleResult struct {
-	Index         int
-	RowIndex      int
-	Number        string
-	ExecProcNum   string
-	ExecProcID    string
-	AllTitles     []string
-	Titles        []string
+	Index             int
+	RowIndex          int
+	Number            string
+	ExecProcNum       string
+	ExecProcID        string
+	AllTitles         []string
+	Titles            []string
 	PDFRefs           []string
 	DownloadedPDF     string
 	PDFSHA1           string
@@ -2011,16 +2011,7 @@ func runExecProcExport(session, startDate string, statuses []string, downloadDir
 			Label: strings.ReplaceAll(startDate, "-", "_") + "_" + strings.ReplaceAll(endDate, "-", "_"),
 		}
 
-		fullSearchRange := fullRange
-		if strings.TrimSpace(statusCode) != "" {
-			fullSearchRange = dateRange{
-				From:  "",
-				To:    "",
-				Label: "all_dates",
-			}
-		}
-
-		fullSearchResult, err := searchDateRange(session, statusCode, fullSearchRange, sendLog)
+		fullSearchResult, err := searchDateRange(session, statusCode, fullRange, sendLog)
 		if err != nil {
 			return files, stats, err
 		}
@@ -2204,6 +2195,7 @@ func downloadPlannedRanges(session, statusCode, statusLabel, downloadDir string,
 		}
 		downloaded, err := exportPlannedRange(session, statusCode, statusLabel, downloadDir, current, sendLog, stats)
 		if err != nil {
+			files = append(files, downloaded...)
 			wrapped := wrapRangeError(statusLabel, current.Range, err)
 			if logErr := sendLog("[ERROR] Skipped " + wrapped.Error()); logErr != nil {
 				return files, logErr
@@ -2217,6 +2209,35 @@ func downloadPlannedRanges(session, statusCode, statusLabel, downloadDir string,
 }
 
 func exportPlannedRange(session, statusCode, statusLabel, downloadDir string, current plannedRange, sendLog func(string) error, stats *exportStats) ([]string, error) {
+	freshSearch, err := searchDateRange(session, statusCode, current.Range, sendLog)
+	if err != nil {
+		return nil, err
+	}
+	if freshSearch.TotalElements == 0 {
+		if err := sendLog("[INFO] Range " + current.Range.Label + " is empty at download time"); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if freshSearch.TotalElements > 10000 {
+		if err := sendLog(fmt.Sprintf("[INFO] Re-splitting range %s before download, totalElements=%d", current.Range.Label, freshSearch.TotalElements)); err != nil {
+			return nil, err
+		}
+		subRanges, err := planExportRangesWithSearch(session, statusCode, statusLabel, current.Range, freshSearch, sendLog)
+		if err != nil {
+			return nil, err
+		}
+		files := make([]string, 0, len(subRanges))
+		for _, subRange := range subRanges {
+			downloaded, err := exportPlannedRange(session, statusCode, statusLabel, downloadDir, subRange, sendLog, stats)
+			if err != nil {
+				return files, err
+			}
+			files = append(files, downloaded...)
+		}
+		return files, nil
+	}
+	current.Search = freshSearch
 	if strings.TrimSpace(current.Search.SearchID) == "" {
 		return nil, fmt.Errorf("searchId пустой при totalElements=%d", current.Search.TotalElements)
 	}
