@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -35,52 +34,28 @@ func TestPDFTitleMatchingSupportsRussianAndKazakhTargets(t *testing.T) {
 	}
 }
 
-func TestPDFParseJobsFromRowsUsesFirstColumnWithoutStatusColumn(t *testing.T) {
+func TestStrictExecProcPairJobsFromRowsUsesTwoColumns(t *testing.T) {
 	rows := [][]string{
-		{"Номер исполнительного производства"},
-		{"12345"},
-		{"67890", "На исполнении"},
-		{""},
+		{"Исполнительный документ", "Исполнительное производство"},
+		{"DOC-1", "PROC-1"},
 	}
 
-	jobs := pdfParseJobsFromRows(rows)
-
-	if len(jobs) != 2 {
-		t.Fatalf("expected 2 jobs, got %d", len(jobs))
+	jobs, err := strictExecProcPairJobsFromRows(rows)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if jobs[0].Number != "12345" || jobs[0].RowIndex != 1 {
-		t.Fatalf("unexpected first job: %+v", jobs[0])
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
 	}
-	if jobs[1].Number != "67890" || jobs[1].RowIndex != 2 {
-		t.Fatalf("unexpected second job: %+v", jobs[1])
+	if jobs[0].Number != "DOC-1" || jobs[0].ExecProcNum != "PROC-1" || jobs[0].RowIndex != 1 {
+		t.Fatalf("unexpected job: %+v", jobs[0])
 	}
 }
 
-func TestPDFParseColumnsIncludeProcessingStatus(t *testing.T) {
-	rows := appendPDFParseColumns([][]string{
-		{"Номер исполнительного производства"},
-		{"12345"},
-	})
-
-	if got := rows[0][len(rows[0])-1]; got != "Статус обработки" {
-		t.Fatalf("expected status header, got %q", got)
-	}
-
-	status := pdfParseStatus(pdfTitleResult{
-		DecreeDate: "01.01.2026",
-		LegalBasis: "подпунктом 7 пункта 1 статьи 47",
-	})
-	setPDFParseColumns(rows, 1, "01.01.2026", "подпунктом 7 пункта 1 статьи 47", status)
-	if got := rows[1][len(rows[1])-1]; got != "OK" {
-		t.Fatalf("expected OK status, got %q", got)
-	}
-}
-
-func TestPDFParseStatusReportsErrors(t *testing.T) {
-	got := pdfParseStatus(pdfTitleResult{Err: errors.New("PDF недоступен")})
-
-	if got != "Ошибка: PDF недоступен" {
-		t.Fatalf("unexpected status: %q", got)
+func TestStrictExecProcPairJobsFromRowsRejectsExtraColumn(t *testing.T) {
+	_, err := strictExecProcPairJobsFromRows([][]string{{"DOC-1", "PROC-1", "лишнее"}})
+	if err == nil {
+		t.Fatal("expected extra column to be rejected")
 	}
 }
 
