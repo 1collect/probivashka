@@ -435,9 +435,11 @@ func main() {
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/execproc-ws", handleExecProcWebSocket)
 	http.HandleFunc("/pdf-titles-v2-ws", handlePDFTitlesUpdatedWebSocket)
+	http.HandleFunc("/pdf-titles-iin-ws", handlePDFTitlesIINWebSocket)
 	http.HandleFunc("/debtor-erd-ws", handleDebtorERDWebSocket)
 	http.HandleFunc("/request-status-ws", handleRequestStatusWebSocket)
 	http.HandleFunc("/request-status-v2-ws", handleRequestStatusUpdatedWebSocket)
+	http.HandleFunc("/request-status-iin-ws", handleRequestStatusIINWebSocket)
 
 	log.Printf("HTTP server started on http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, nil); err != nil {
@@ -893,6 +895,75 @@ func handlePDFTitlesUpdatedWebSocket(w http.ResponseWriter, r *http.Request) {
 	watchPDFJob(conn, jobID, ownerToken)
 }
 
+func handlePDFTitlesIINWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer conn.Close()
+
+	payload, err := readClientTextFrame(conn)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	var req pdfTitlesRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось разобрать запрос"})
+		return
+	}
+
+	switch req.Type {
+	case "pdf-titles-iin-watch":
+		watchPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-titles-iin-cancel":
+		cancelPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-titles-iin-token":
+		updatePDFJobSession(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken), strings.TrimSpace(req.SessionKey))
+		return
+	}
+
+	ownerToken := strings.TrimSpace(req.OwnerToken)
+	session := strings.TrimSpace(req.SessionKey)
+	if ownerToken == "" || session == "" {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "SESSION и ownerToken обязательны"})
+		return
+	}
+	if strings.Contains(session, ";") || strings.Contains(session, "=") {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "вставьте только значение SESSION без дополнительных параметров"})
+		return
+	}
+	fileBytes, err := base64.StdEncoding.DecodeString(req.FileBase64)
+	if err != nil || len(fileBytes) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось декодировать файл"})
+		return
+	}
+	sourceRows, err := readXLSXRowsBytes(fileBytes)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	jobsToRun, err := strictIINExecProcPairJobsFromRows(sourceRows)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	if len(jobsToRun) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с ИИН и исполнительным производством"})
+		return
+	}
+
+	jobID := newJobID()
+	workers := normalizePDFTitleWorkers(req.Workers, len(jobsToRun))
+	createPDFJob(jobID, ownerToken, len(jobsToRun), fmt.Sprintf("Запущено потоков: %d", workers), session)
+	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
+	go runPDFIINJob(jobID, sourceRows, jobsToRun, workers)
+	watchPDFJob(conn, jobID, ownerToken)
+}
+
 func runPDFUpdatedJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
 	jobs := make(chan execProcPairJob)
 	resultsCh := make(chan pdfTitleResult, len(jobsToRun))
@@ -957,6 +1028,65 @@ func runPDFUpdatedJob(jobID string, sourceRows [][]string, jobsToRun []execProcP
 	}
 
 	finishPDFJobResult(jobID, datedXLSXFileName("execproc_with_pdf_parse_updated"), base64.StdEncoding.EncodeToString(xlsxBytes), foundProc, failed)
+}
+
+func runPDFIINJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
+	jobs := make(chan execProcPairJob)
+	resultsCh := make(chan pdfTitleResult, len(jobsToRun))
+	for i := 0; i < workers; i++ {
+		go func() {
+			for currentJob := range jobs {
+				if isPDFJobCanceled(jobID) {
+					resultsCh <- pdfTitleResult{Index: currentJob.Index, RowIndex: currentJob.RowIndex, Number: currentJob.Number, ExecProcNum: currentJob.ExecProcNum, Err: errors.New("операция отменена")}
+					continue
+				}
+				resultsCh <- fetchPDFTitlesForIINExecProcWithAuth(jobID, currentJob.Index, currentJob.RowIndex, currentJob.Number, currentJob.ExecProcNum)
+			}
+		}()
+	}
+	go func() {
+		for _, currentJob := range jobsToRun {
+			jobs <- currentJob
+		}
+		close(jobs)
+	}()
+
+	results := make([]pdfTitleResult, len(jobsToRun))
+	failed, foundProc := 0, 0
+	for i := 0; i < len(jobsToRun); i++ {
+		result := <-resultsCh
+		results[result.Index] = result
+		if isPDFJobCanceled(jobID) {
+			continue
+		}
+		if result.Err != nil {
+			failed++
+		} else {
+			foundProc += result.ExecProcCount
+		}
+		updatePDFJob(jobID, func(job *pdfJobState) {
+			job.Status = "running"
+			job.Current = i + 1
+			job.Number = joinNonEmpty(" / ", result.Number, result.ExecProcNum, result.ExecProcID)
+			job.Processed = foundProc
+			job.Failed = failed
+			job.Message = statusFromError(result.Err)
+			job.Error = errorText(result.Err)
+		})
+	}
+	if isPDFJobCanceled(jobID) {
+		return
+	}
+	outputRows := appendPDFIINParseColumns(sourceRows)
+	for _, result := range results {
+		setPDFUpdatedParseColumns(outputRows, result.RowIndex, result.DecreeDate, result.LegalBasis)
+	}
+	xlsxBytes, err := buildXLSXBytes([]sheetData{{Name: "Результаты", Rows: outputRows}})
+	if err != nil {
+		finishPDFJobError(jobID, err.Error())
+		return
+	}
+	finishPDFJobResult(jobID, datedXLSXFileName("iin_execproc_with_pdf_parse"), base64.StdEncoding.EncodeToString(xlsxBytes), foundProc, failed)
 }
 
 func handleDebtorERDWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -1251,6 +1381,67 @@ func handleRequestStatusUpdatedWebSocket(w http.ResponseWriter, r *http.Request)
 	watchPDFJob(conn, jobID, ownerToken)
 }
 
+func handleRequestStatusIINWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer conn.Close()
+	payload, err := readClientTextFrame(conn)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	var req requestStatusRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось разобрать запрос"})
+		return
+	}
+	switch req.Type {
+	case "request-status-iin-watch":
+		watchPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "request-status-iin-cancel":
+		cancelPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "request-status-iin-token":
+		updatePDFJobSession(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken), strings.TrimSpace(req.SessionKey))
+		return
+	}
+	ownerToken := strings.TrimSpace(req.OwnerToken)
+	session := strings.TrimSpace(req.SessionKey)
+	if ownerToken == "" || session == "" {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "SESSION и ownerToken обязательны"})
+		return
+	}
+	fileBytes, err := base64.StdEncoding.DecodeString(req.FileBase64)
+	if err != nil || len(fileBytes) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось декодировать файл"})
+		return
+	}
+	sourceRows, err := readXLSXRowsBytes(fileBytes)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	jobsToRun, err := strictIINExecProcPairJobsFromRows(sourceRows)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	if len(jobsToRun) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с ИИН и исполнительным производством"})
+		return
+	}
+	jobID := newJobID()
+	workers := normalizeRequestStatusWorkers(req.Workers, len(jobsToRun))
+	createPDFJob(jobID, ownerToken, len(jobsToRun), fmt.Sprintf("Запущено потоков: %d", workers), session)
+	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
+	go runRequestStatusIINJob(jobID, jobsToRun, workers)
+	watchPDFJob(conn, jobID, ownerToken)
+}
+
 func runRequestStatusJob(jobID string, numbers []string, workers int) {
 	jobs := make(chan requestStatusJob)
 	resultsCh := make(chan requestStatusResult, len(numbers))
@@ -1416,6 +1607,70 @@ func runRequestStatusUpdatedJob(jobID string, jobsToRun []execProcPairJob, worke
 		return
 	}
 	finishPDFJobResult(jobID, datedXLSXFileName("execdoc_request_statuses_updated"), base64.StdEncoding.EncodeToString(xlsxBytes), processed, failed)
+}
+
+func runRequestStatusIINJob(jobID string, jobsToRun []execProcPairJob, workers int) {
+	jobs := make(chan execProcPairJob)
+	resultsCh := make(chan requestStatusResult, len(jobsToRun))
+	for i := 0; i < workers; i++ {
+		go func() {
+			for currentJob := range jobs {
+				if isPDFJobCanceled(jobID) {
+					resultsCh <- requestStatusResult{Index: currentJob.Index, Number: currentJob.Number, ExecProcNum: currentJob.ExecProcNum, Err: errors.New("операция отменена")}
+					continue
+				}
+				resultsCh <- fetchRequestStatusForIINExecProcWithAuth(jobID, currentJob.Index, currentJob.Number, currentJob.ExecProcNum)
+			}
+		}()
+	}
+	go func() {
+		for _, currentJob := range jobsToRun {
+			jobs <- currentJob
+		}
+		close(jobs)
+	}()
+
+	results := make([]requestStatusResult, len(jobsToRun))
+	processed, failed, foundProc := 0, 0, 0
+	for i := 0; i < len(jobsToRun); i++ {
+		result := <-resultsCh
+		results[result.Index] = result
+		if isPDFJobCanceled(jobID) {
+			continue
+		}
+		if result.Err != nil {
+			failed++
+		} else {
+			processed++
+			foundProc += result.ExecProcCount
+		}
+		updatePDFJob(jobID, func(job *pdfJobState) {
+			job.Status = "running"
+			job.Current = i + 1
+			job.Number = joinNonEmpty(" / ", result.Number, result.ExecProcNum, result.ExecProcID)
+			job.Processed = foundProc
+			job.Failed = failed
+			job.Message = statusFromError(result.Err)
+			job.Error = errorText(result.Err)
+		})
+	}
+	if isPDFJobCanceled(jobID) {
+		return
+	}
+	rows := [][]string{{"ИИН", "Исполнительное производство", "Запрос ОПВ", "Статус ОПВ", "Дата ответа ОПВ", "Запрос пенсий и пособий", "Статус пенсий и пособий", "Дата ответа пенсий и пособий"}}
+	for _, result := range results {
+		rows = append(rows, []string{
+			result.Number, result.ExecProcNum,
+			zeroIfEmpty(result.Pension.Request), zeroIfEmpty(result.Pension.State), zeroIfEmpty(formatDisplayDate(result.Pension.CreatedDate)),
+			zeroIfEmpty(result.Benefit.Request), zeroIfEmpty(result.Benefit.State), zeroIfEmpty(formatDisplayDate(result.Benefit.CreatedDate)),
+		})
+	}
+	xlsxBytes, err := buildXLSXBytes([]sheetData{{Name: "Результаты", Rows: rows}})
+	if err != nil {
+		finishPDFJobError(jobID, err.Error())
+		return
+	}
+	finishPDFJobResult(jobID, datedXLSXFileName("iin_execproc_request_statuses"), base64.StdEncoding.EncodeToString(xlsxBytes), processed, failed)
 }
 
 func normalizeRequestStatusWorkers(value int, total int) int {
@@ -2907,6 +3162,32 @@ func strictExecProcPairJobsFromRows(rows [][]string) ([]execProcPairJob, error) 
 	return jobs, nil
 }
 
+func strictIINExecProcPairJobsFromRows(rows [][]string) ([]execProcPairJob, error) {
+	jobs := make([]execProcPairJob, 0, len(rows))
+	for idx, row := range rows {
+		if rowIsEmpty(row) {
+			continue
+		}
+		if idx == 0 && isStrictIINExecProcHeaderRow(row) {
+			continue
+		}
+		if len(row) < 2 || strings.TrimSpace(row[0]) == "" || strings.TrimSpace(row[1]) == "" {
+			return nil, fmt.Errorf("строка %d: нужны ровно две заполненные колонки: ИИН и исполнительное производство", idx+1)
+		}
+		for colIdx := 2; colIdx < len(row); colIdx++ {
+			if strings.TrimSpace(row[colIdx]) != "" {
+				return nil, fmt.Errorf("строка %d: файл должен содержать строго две колонки, найдена лишняя колонка %d", idx+1, colIdx+1)
+			}
+		}
+		iin := onlyDigits(row[0])
+		if len(iin) != 12 {
+			return nil, fmt.Errorf("строка %d: ИИН должен содержать ровно 12 цифр", idx+1)
+		}
+		jobs = append(jobs, execProcPairJob{Index: len(jobs), RowIndex: idx, Number: iin, ExecProcNum: strings.TrimSpace(row[1])})
+	}
+	return jobs, nil
+}
+
 func rowIsEmpty(row []string) bool {
 	for _, value := range row {
 		if strings.TrimSpace(value) != "" {
@@ -2926,6 +3207,16 @@ func isStrictPDFHeaderRow(row []string) bool {
 		(strings.Contains(second, "производ") || strings.Contains(second, "execproc"))
 }
 
+func isStrictIINExecProcHeaderRow(row []string) bool {
+	if len(row) < 2 {
+		return false
+	}
+	first := strings.ToLower(strings.TrimSpace(row[0]))
+	second := strings.ToLower(strings.TrimSpace(row[1]))
+	return (first == "iin" || strings.Contains(first, "иин")) &&
+		(strings.Contains(second, "производ") || strings.Contains(second, "execproc") || second == "ип")
+}
+
 func appendPDFUpdatedParseColumns(rows [][]string) [][]string {
 	result := make([][]string, len(rows))
 	for idx, row := range rows {
@@ -2937,6 +3228,24 @@ func appendPDFUpdatedParseColumns(rows [][]string) [][]string {
 		result[0] = append(result[0], "Дата постановления", "Основание")
 	}
 
+	for idx := range result {
+		if hasHeader && idx == 0 {
+			continue
+		}
+		result[idx] = append(result[idx], "", "")
+	}
+	return result
+}
+
+func appendPDFIINParseColumns(rows [][]string) [][]string {
+	result := make([][]string, len(rows))
+	for idx, row := range rows {
+		result[idx] = append([]string(nil), row...)
+	}
+	hasHeader := len(result) > 0 && isStrictIINExecProcHeaderRow(result[0])
+	if hasHeader {
+		result[0] = append(result[0], "Дата постановления", "Основание")
+	}
 	for idx := range result {
 		if hasHeader && idx == 0 {
 			continue
@@ -3525,6 +3834,28 @@ func fetchPDFTitlesForExactExecProc(index int, rowIndex int, number, execProcNum
 	return fetchPDFTitlesFromExecProcIDs(result, []string{execProcID}, session)
 }
 
+func fetchPDFTitlesForIINExecProc(index int, rowIndex int, iin, execProcNum, session string) pdfTitleResult {
+	result := pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum}
+	searchPayload := map[string]any{
+		"iin":        iin,
+		"searchType": false,
+		"statusCode": targetExecProcStatusCode,
+	}
+	searchURL := baseURL + "/api/rest/execproc/search?page=0&size=100"
+	var searchResponse any
+	if err := execProcJSONRequest(http.MethodPost, searchURL, session, searchPayload, &searchResponse); err != nil {
+		result.Err = err
+		return result
+	}
+	execProcID := extractExecProcIDForExecProcNum(searchResponse, execProcNum)
+	if execProcID == "" {
+		result.Err = fmt.Errorf("по ИИН %q не найдено ИП с номером %q", iin, execProcNum)
+		return result
+	}
+	result.ExecProcID = execProcID
+	return fetchPDFTitlesFromExecProcIDs(result, []string{execProcID}, session)
+}
+
 func fetchPDFTitlesFromExecProcIDs(result pdfTitleResult, execProcIDs []string, session string) pdfTitleResult {
 	allTitles := make([]string, 0)
 	ruMatches := make([]matchedPDFDocument, 0)
@@ -3676,6 +4007,41 @@ func fetchRequestStatusForExactExecProc(index int, number, execProcNum, session 
 		result.Benefit = latest
 	}
 
+	return result
+}
+
+func fetchRequestStatusForIINExecProc(index int, iin, execProcNum, session string) requestStatusResult {
+	result := requestStatusResult{Index: index, Number: iin, ExecProcNum: execProcNum}
+	searchPayload := map[string]any{
+		"statusCode": "1",
+		"iin":        iin,
+		"searchType": false,
+	}
+	searchURL := baseURL + "/api/rest/execproc/search?page=0&size=100"
+	var searchResponse any
+	if err := execProcJSONRequest(http.MethodPost, searchURL, session, searchPayload, &searchResponse); err != nil {
+		result.Err = err
+		return result
+	}
+	execProcID := extractExecProcIDForExecProcNum(searchResponse, execProcNum)
+	if execProcID == "" {
+		result.Err = fmt.Errorf("по ИИН %q не найдено ИП на исполнении с номером %q", iin, execProcNum)
+		return result
+	}
+	result.ExecProcID = execProcID
+	result.ExecProcCount = 1
+	requestURL := baseURL + "/api/rest/execproc/request/" + url.PathEscape(execProcID) + "?searchType=false"
+	var entries []requestStatusEntry
+	if err := execProcJSONRequest(http.MethodGet, requestURL, session, nil, &entries); err != nil {
+		result.Err = err
+		return result
+	}
+	if latest, ok := latestRequestStatusEntry(entries, "Обязательные пенсионные отчисления"); ok {
+		result.Pension = latest
+	}
+	if latest, ok := latestRequestStatusEntry(entries, "Выплата пенсий и пособий"); ok {
+		result.Benefit = latest
+	}
 	return result
 }
 
@@ -4163,6 +4529,21 @@ func fetchPDFTitlesForExactExecProcWithAuth(jobID string, index int, rowIndex in
 	}
 }
 
+func fetchPDFTitlesForIINExecProcWithAuth(jobID string, index int, rowIndex int, iin, execProcNum string) pdfTitleResult {
+	for {
+		session, err := waitForActiveJobSession(jobID)
+		if err != nil {
+			return pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum, Err: err}
+		}
+		result := fetchPDFTitlesForIINExecProc(index, rowIndex, iin, execProcNum, session)
+		if isAuthExpiredError(result.Err) {
+			pausePDFJobForAuth(jobID)
+			continue
+		}
+		return result
+	}
+}
+
 func fetchRequestStatusForNumberWithAuth(jobID string, index int, number string) requestStatusResult {
 	for {
 		session, err := waitForActiveJobSession(jobID)
@@ -4185,6 +4566,21 @@ func fetchRequestStatusForExactExecProcWithAuth(jobID string, index int, number,
 			return requestStatusResult{Index: index, Number: number, ExecProcNum: execProcNum, Err: err}
 		}
 		result := fetchRequestStatusForExactExecProc(index, number, execProcNum, session)
+		if isAuthExpiredError(result.Err) {
+			pausePDFJobForAuth(jobID)
+			continue
+		}
+		return result
+	}
+}
+
+func fetchRequestStatusForIINExecProcWithAuth(jobID string, index int, iin, execProcNum string) requestStatusResult {
+	for {
+		session, err := waitForActiveJobSession(jobID)
+		if err != nil {
+			return requestStatusResult{Index: index, Number: iin, ExecProcNum: execProcNum, Err: err}
+		}
+		result := fetchRequestStatusForIINExecProc(index, iin, execProcNum, session)
 		if isAuthExpiredError(result.Err) {
 			pausePDFJobForAuth(jobID)
 			continue

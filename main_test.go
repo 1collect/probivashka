@@ -59,6 +59,31 @@ func TestStrictExecProcPairJobsFromRowsRejectsExtraColumn(t *testing.T) {
 	}
 }
 
+func TestStrictIINExecProcPairJobsFromRowsUsesIINAndExecProc(t *testing.T) {
+	rows := [][]string{
+		{"ИИН", "Исполнительное производство"},
+		{"031001501639", "PROC-1"},
+	}
+
+	jobs, err := strictIINExecProcPairJobsFromRows(rows)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+	if jobs[0].Number != "031001501639" || jobs[0].ExecProcNum != "PROC-1" || jobs[0].RowIndex != 1 {
+		t.Fatalf("unexpected job: %+v", jobs[0])
+	}
+}
+
+func TestStrictIINExecProcPairJobsFromRowsRejectsInvalidIIN(t *testing.T) {
+	_, err := strictIINExecProcPairJobsFromRows([][]string{{"123", "PROC-1"}})
+	if err == nil {
+		t.Fatal("expected invalid IIN to be rejected")
+	}
+}
+
 func TestNormalizePDFParseAPIWorkers(t *testing.T) {
 	if got := normalizePDFParseAPIWorkers(""); got != defaultPDFParseAPIWorkers {
 		t.Fatalf("expected default workers, got %d", got)

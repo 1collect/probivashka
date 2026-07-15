@@ -415,6 +415,8 @@
           <button class="tab-button" type="button" data-tab="page4">ЕРД по ИИН</button>
           <button class="tab-button" type="button" data-tab="page5">Выгрузка ОПО и ВПП</button>
           <button class="tab-button" type="button" data-tab="page7">Выгрузка ОПО и ВПП <span class="tab-badge">new</span></button>
+          <button class="tab-button" type="button" data-tab="page8">Определение статьи прекращение <span class="tab-badge">new (по ИИН)</span></button>
+          <button class="tab-button" type="button" data-tab="page9">Выгрузка ОПО и ВПП <span class="tab-badge">new (по ИИН)</span></button>
         </nav>
       </aside>
 
@@ -734,6 +736,84 @@
       </aside>
     </section>
 
+    <section id="page8" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="pdfIINSessionKey">Ключ сессии</label>
+            <div id="pdfIINSessionAuthAlert" class="auth-alert"></div>
+            <input id="pdfIINSessionKey" type="text" placeholder="SESSION">
+          </div>
+          <div class="field">
+            <label class="block" for="pdfIINSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <input id="pdfIINSourceFile" type="file" accept=".xlsx">
+            <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “Окончено” и size=100.</div>
+          </div>
+          <div class="field">
+            <label class="block" for="pdfIINWorkersCount">Параллельных запросов</label>
+            <input id="pdfIINWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="pdfIINStartButton" type="button">Сформировать XLSX</button>
+              <button id="pdfIINCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">Исходные ИИН и номер ИП сохраняются, в результат добавляются дата постановления и основание.</span>
+            <div id="pdfIINResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="pdfIINStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="pdfIINProgressBar"></div></div>
+        <div id="pdfIINSummary" class="summary">Поиск: ИИН + точный номер исполнительного производства.</div>
+      </aside>
+    </section>
+
+    <section id="page9" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="requestIINSessionKey">Ключ сессии</label>
+            <div id="requestIINSessionAuthAlert" class="auth-alert"></div>
+            <input id="requestIINSessionKey" type="text" placeholder="SESSION">
+          </div>
+          <div class="field">
+            <label class="block" for="requestIINSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <input id="requestIINSourceFile" type="file" accept=".xlsx">
+            <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “На исполнении” и size=100.</div>
+          </div>
+          <div class="field">
+            <label class="block" for="requestIINWorkersCount">Параллельных запросов</label>
+            <input id="requestIINWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="requestIINStartButton" type="button">Сформировать XLSX</button>
+              <button id="requestIINCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">В результат сохраняются ИИН и номер ИП, затем добавляются последние ответы по ОПВ и выплатам пенсий/пособий.</span>
+            <div id="requestIINResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="requestIINStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="requestIINProgressBar"></div></div>
+        <div id="requestIINSummary" class="summary">Поиск: ИИН + точный номер исполнительного производства.</div>
+      </aside>
+    </section>
+
       </div>
     </div>
   </main>
@@ -972,6 +1052,18 @@
       if (tabId === "page7") {
         pageTitle.textContent = "Выгрузка ОПО и ВПП (обновленный)";
         pageDescription.textContent = "Загрузите XLSX с исполнительным документом в первой колонке и исполнительным производством во второй. Статусы будут выгружены только для указанного производства.";
+        return;
+      }
+
+      if (tabId === "page8") {
+        pageTitle.textContent = "Определение статьи прекращение new (по ИИН)";
+        pageDescription.textContent = "Загрузите XLSX с ИИН в первой колонке и исполнительным производством во второй. Поиск выполняется по iin со статусом “Окончено” и size=100.";
+        return;
+      }
+
+      if (tabId === "page9") {
+        pageTitle.textContent = "Выгрузка ОПО и ВПП new (по ИИН)";
+        pageDescription.textContent = "Загрузите XLSX с ИИН в первой колонке и исполнительным производством во второй. Поиск выполняется по iin со статусом “На исполнении” и size=100.";
         return;
       }
 
@@ -1820,6 +1912,182 @@
         setRequestUpdatedStatus(error.message || "Не удалось обработать файл.", true);
         setRequestUpdatedBusy(false);
       }
+    });
+
+    function createIINPairController(config) {
+      const sessionInput = document.getElementById(config.id + "SessionKey");
+      const fileInput = document.getElementById(config.id + "SourceFile");
+      const workersInput = document.getElementById(config.id + "WorkersCount");
+      const start = document.getElementById(config.id + "StartButton");
+      const cancel = document.getElementById(config.id + "CancelButton");
+      const status = document.getElementById(config.id + "Status");
+      const progressBarElement = document.getElementById(config.id + "ProgressBar");
+      const summary = document.getElementById(config.id + "Summary");
+      const resultCard = document.getElementById(config.id + "ResultCard");
+      const authAlert = document.getElementById(config.id + "SessionAuthAlert");
+      let paused = false;
+
+      sessionInput.value = localStorage.getItem(config.sessionKey) || "";
+      sessionInput.addEventListener("input", () => localStorage.setItem(config.sessionKey, sessionInput.value));
+      fixWorkersInput(workersInput);
+
+      function setStatusText(text, isError = false, isOk = false) {
+        status.textContent = text;
+        status.classList.toggle("error", isError);
+        status.classList.toggle("ok", isOk && !isError);
+        status.classList.toggle("warn", paused && !isError && !isOk);
+      }
+
+      function setBusy(busy) {
+        start.hidden = busy && !paused;
+        start.disabled = busy && !paused;
+        cancel.hidden = !busy && !paused;
+        cancel.disabled = !busy && !paused;
+        sessionInput.disabled = busy && !paused;
+        fileInput.disabled = busy || paused;
+        workersInput.disabled = true;
+      }
+
+      function showPaused(data) {
+        paused = true;
+        rememberActiveJob(config.activeKey, data.jobId || localStorage.getItem(config.activeKey) || "", activeJobStartedAt(config.activeKey));
+        authAlert.textContent = data.message || "SESSION больше не валиден. Обновите токен, чтобы продолжить.";
+        authAlert.classList.add("show");
+        start.textContent = "Продолжить";
+        setStatusText(authAlert.textContent, false, false);
+        summary.textContent = authPausedSummaryText();
+        setBusy(false);
+      }
+
+      function clearPaused() {
+        paused = false;
+        authAlert.textContent = "";
+        authAlert.classList.remove("show");
+        start.textContent = "Сформировать XLSX";
+      }
+
+      function renderProgress(data, startedAt) {
+        const current = data.current || 0;
+        const total = data.total || 0;
+        const percent = total ? Math.round((current / total) * 100) : 0;
+        progressBarElement.style.width = `${percent}%`;
+        const elapsed = Date.now() - startedAt;
+        const remaining = current > 0 ? Math.round((elapsed / current) * Math.max(0, total - current)) : null;
+        summary.textContent = `${percent}% • ${current}/${total} • найдено ИП: ${data.processed || 0} • ошибок: ${data.failed || 0} • прошло ${formatDuration(elapsed)} • осталось ${remaining === null ? "считаю..." : formatDuration(remaining)}`;
+        setStatusText(`${current}/${total} • ${data.number || ""} • ${data.status || "В работе"}${data.error ? `\n${data.error}` : ""}`, data.status === "Ошибка");
+      }
+
+      function connect(message, startedAt) {
+        setBusy(true);
+        const socket = new WebSocket(buildWsUrl(config.path));
+        socket.addEventListener("open", () => socket.send(JSON.stringify(message)));
+        socket.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "job") {
+            rememberActiveJob(config.activeKey, data.jobId || "", startedAt);
+            return;
+          }
+          if (data.type === "auth") {
+            showPaused(data);
+            socket.close();
+            return;
+          }
+          if (data.type === "token") {
+            clearPaused();
+            socket.close();
+            watch(data.jobId || localStorage.getItem(config.activeKey));
+            return;
+          }
+          if (data.type === "progress") {
+            renderProgress(data, startedAt);
+            return;
+          }
+          if (data.type === "result") {
+            clearPaused();
+            progressBarElement.style.width = "100%";
+            setStatusText(`Готово. Обработано: ${data.processed || 0}, ошибок: ${data.failed || 0}.`, false, true);
+            summary.textContent = "XLSX готов.";
+            rememberResultJob(config.resultKey, data.jobId || localStorage.getItem(config.activeKey));
+            showResultCard(resultCard, data.fileBase64, data.fileName || datedXlsxFileName(config.fileBase));
+            clearActiveJob(config.activeKey);
+            setBusy(false);
+            socket.close();
+            return;
+          }
+          if (data.type === "error") {
+            setStatusText(data.message || data.error || "Ошибка обработки.", true);
+            clearActiveJob(config.activeKey);
+            clearPaused();
+            setBusy(false);
+            socket.close();
+          }
+        });
+        socket.addEventListener("error", () => {
+          setStatusText("Ошибка соединения.", true);
+          setBusy(false);
+        });
+      }
+
+      function watch(jobId) {
+        if (!jobId) return;
+        const startedAt = activeJobStartedAt(config.activeKey);
+        connect({type: config.prefix + "-watch", jobId, ownerToken: getPdfOwnerToken()}, startedAt);
+      }
+
+      start.addEventListener("click", async () => {
+        const sessionKey = sessionInput.value.trim();
+        if (!sessionKey) {
+          setStatusText("Введите SESSION.", true);
+          return;
+        }
+        if (paused) {
+          const jobId = localStorage.getItem(config.activeKey);
+          connect({type: config.prefix + "-token", jobId, sessionKey, ownerToken: getPdfOwnerToken()}, activeJobStartedAt(config.activeKey));
+          return;
+        }
+        const file = fileInput.files[0];
+        if (!file) {
+          setStatusText("Выберите xlsx файл.", true);
+          return;
+        }
+        clearStoredResult(config.resultKey, resultCard);
+        setStatusText("Подключаюсь к серверу...");
+        summary.textContent = "Подготовка файла...";
+        const startedAt = Date.now();
+        try {
+          const fileBase64 = await readFileAsBase64(file);
+          connect({type: config.prefix + "-start", sessionKey, fileName: file.name, fileBase64, workers: 8, ownerToken: getPdfOwnerToken()}, startedAt);
+        } catch (error) {
+          setStatusText(error.message || "Не удалось обработать файл.", true);
+          setBusy(false);
+        }
+      });
+
+      cancel.addEventListener("click", () => {
+        const jobId = localStorage.getItem(config.activeKey);
+        if (!jobId) return;
+        connect({type: config.prefix + "-cancel", jobId, ownerToken: getPdfOwnerToken()}, activeJobStartedAt(config.activeKey));
+      });
+
+      window.addEventListener("load", () => {
+        const jobId = localStorage.getItem(config.activeKey);
+        if (jobId) {
+          setActiveTab(config.page);
+          watch(jobId);
+        }
+        restoreResultJob(config.path, config.prefix + "-watch", config.resultKey, resultCard, datedXlsxFileName(config.fileBase));
+      });
+    }
+
+    createIINPairController({
+      id: "pdfIIN", page: "page8", path: "/pdf-titles-iin-ws", prefix: "pdf-titles-iin",
+      activeKey: "probivashka.activePdfIINJob", resultKey: "probivashka.resultPdfIINJob",
+      sessionKey: "probivashka.pdfIINSession", fileBase: "iin_execproc_with_pdf_parse"
+    });
+    createIINPairController({
+      id: "requestIIN", page: "page9", path: "/request-status-iin-ws", prefix: "request-status-iin",
+      activeKey: "probivashka.activeRequestIINJob", resultKey: "probivashka.resultRequestIINJob",
+      sessionKey: "probivashka.requestIINSession", fileBase: "iin_execproc_request_statuses"
     });
 
     window.addEventListener("load", () => {
