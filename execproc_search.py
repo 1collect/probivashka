@@ -11,6 +11,13 @@ from io import BytesIO
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8890
 
+KZ_CLOSING_INTRO_PATTERN = (
+    r"(?:Жоғарыда\s+(?:аталғанның|айтылғанның|баяндалғанның)\s+негізінде"
+    r"|Жоғарыдағылардың\s+негізінде"
+    r"|Жоғарыдағылдардың\s+негізінде)"
+)
+PDF_DASH_PATTERN = r"[-‐‑‒–—]"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PDF parse API for Probivashka.")
@@ -38,7 +45,7 @@ def extract_structured_legal_basis(text: str) -> str:
     search_areas: list[str] = []
 
     kz_guided = re.search(
-        r"(?:Жоғарыдағылардың|Жоғарыдағылдардың|негізінде)[\s\S]{0,1500}?басшылыққа\s+ала\s+отырып",
+        KZ_CLOSING_INTRO_PATTERN + r"[\s\S]{0,1500}?басшылыққа\s+ала\s+отырып",
         normalized,
         flags=re.IGNORECASE,
     )
@@ -56,9 +63,9 @@ def extract_structured_legal_basis(text: str) -> str:
     search_areas.append(normalized)
 
     kz_subpoint_pattern = re.compile(
-        r"(?P<article>\d+(?:[-.]\d+)?)\s*-\s*бабы\s+"
-        r"(?P<point>\d+(?:[-.]\d+)?)\s*-\s*тармағының\s+"
-        r"(?P<subpoint>\d+(?:[-.]\d+)?)\s*\)?\s*-\s*тармақшасын",
+        rf"(?P<article>\d+(?:[-.]\d+)?)\s*{PDF_DASH_PATTERN}\s*бабы(?:ның)?\s+"
+        rf"(?P<point>\d+(?:[-.]\d+)?)\s*{PDF_DASH_PATTERN}\s*тармағының\s+"
+        rf"(?P<subpoint>\d+(?:[-.]\d+)?)\s*(?:\)|{PDF_DASH_PATTERN})\s*тармақшасын",
         flags=re.IGNORECASE,
     )
     ru_subpoint_pattern = re.compile(
@@ -119,7 +126,7 @@ def extract_legal_basis(text: str) -> str:
         return collapse_spaces(ru_fallback.group(0))
 
     kz_fallback = re.search(
-        r"(?:Жоғарыдағылардың|Жоғарыдағылдардың|негізінде)[\s\S]{0,1500}?басшылыққа\s+ала\s+отырып",
+        KZ_CLOSING_INTRO_PATTERN + r"[\s\S]{0,1500}?басшылыққа\s+ала\s+отырып",
         normalized,
         flags=re.IGNORECASE,
     )
@@ -127,7 +134,7 @@ def extract_legal_basis(text: str) -> str:
         return collapse_spaces(kz_fallback.group(0))
 
     loose_fallback = re.search(
-        r"(?:На\s+основании\s+изложенного|Жоғарыдағылардың|Жоғарыдағылдардың)[\s\S]{0,700}",
+        rf"(?:На\s+основании\s+изложенного|{KZ_CLOSING_INTRO_PATTERN})[\s\S]{{0,700}}",
         normalized,
         flags=re.IGNORECASE,
     )
