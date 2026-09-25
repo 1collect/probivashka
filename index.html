@@ -747,9 +747,9 @@
             <input id="pdfIINSessionKey" type="text" placeholder="SESSION">
           </div>
           <div class="field">
-            <label class="block" for="pdfIINSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <label class="block" for="pdfIINSourceFile">Файл с исполнительными документами и производствами</label>
             <input id="pdfIINSourceFile" type="file" accept=".xlsx">
-            <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “Окончено” и size=100.</div>
+            <div class="hint">Строго две колонки: первая — исполнительный документ, вторая — исполнительное производство. Поиск выполняется по исполнительному документу и точному номеру ИП со статусом “Окончено”, size=100.</div>
           </div>
           <div class="field">
             <label class="block" for="pdfIINWorkersCount">Параллельных запросов</label>
@@ -786,9 +786,9 @@
             <input id="pdfVehicleSessionKey" type="text" placeholder="SESSION">
           </div>
           <div class="field">
-            <label class="block" for="pdfVehicleSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <label class="block" for="pdfVehicleSourceFile">Файл с исполнительными документами и производствами</label>
             <input id="pdfVehicleSourceFile" type="file" accept=".xlsx">
-            <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “Окончено” и size=100.</div>
+            <div class="hint">Строго две колонки: первая — исполнительный документ, вторая — исполнительное производство. Поиск выполняется по исполнительному документу и точному номеру ИП со статусом “Окончено”, size=100.</div>
           </div>
           <div class="field">
             <label class="block" for="pdfVehicleWorkersCount">Параллельных запросов</label>
@@ -825,7 +825,7 @@
             <input id="requestIINSessionKey" type="text" placeholder="SESSION">
           </div>
           <div class="field">
-            <label class="block" for="requestIINSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <label class="block" for="requestIINSourceFile">Файл с исполнительными документами и производствами</label>
             <input id="requestIINSourceFile" type="file" accept=".xlsx">
             <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “На исполнении” и size=100.</div>
           </div>
@@ -1097,7 +1097,7 @@
 
       if (tabId === "page10") {
         pageTitle.textContent = "наложение ареста ТС";
-        pageDescription.textContent = "Загрузите XLSX с ИИН и номером исполнительного производства. Ищутся четыре вида постановлений об аресте или задержании транспорта и движимого имущества; полный первый пункт и найденные PDF попадут в отдельные колонки.";
+        pageDescription.textContent = "Загрузите XLSX со строго двумя колонками: исполнительный документ и исполнительное производство. Ищутся четыре вида постановлений только в указанном ИП; полный первый пункт и найденные PDF попадут в отдельные колонки.";
         return;
       }
 
@@ -2133,7 +2133,7 @@
     createIINPairController({
       id: "pdfVehicle", page: "page10", path: "/pdf-vehicle-orders-ws", prefix: "pdf-vehicle-orders",
       activeKey: "probivashka.activePdfVehicleOrdersJob", resultKey: "probivashka.resultPdfVehicleOrdersJob",
-      sessionKey: "probivashka.pdfVehicleOrdersSession", fileBase: "iin_vehicle_orders_first_point"
+      sessionKey: "probivashka.pdfVehicleOrdersSession", fileBase: "execproc_vehicle_arrests_first_point"
     });
     createIINPairController({
       id: "requestIIN", page: "page9", path: "/request-status-iin-ws", prefix: "request-status-iin",

@@ -1014,13 +1014,13 @@ func handlePDFVehicleOrdersWebSocket(w http.ResponseWriter, r *http.Request) {
 		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
 		return
 	}
-	jobsToRun, err := strictIINExecProcPairJobsFromRows(sourceRows)
+	jobsToRun, err := strictExecProcPairJobsFromRows(sourceRows)
 	if err != nil {
 		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
 		return
 	}
 	if len(jobsToRun) == 0 {
-		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с ИИН и исполнительным производством"})
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с исполнительным документом и исполнительным производством"})
 		return
 	}
 	jobID := newJobID()
@@ -1046,7 +1046,7 @@ func runPDFVehicleOrdersJob(jobID string, sourceRows [][]string, jobsToRun []exe
 					results <- vehicleResult{Index: j.Index, RowIndex: j.RowIndex, Err: errors.New("операция отменена")}
 					continue
 				}
-				r := fetchPDFVehicleOrderForIINWithAuth(jobID, j.Index, j.RowIndex, j.Number, j.ExecProcNum)
+				r := fetchPDFVehicleOrderForExactExecProcWithAuth(jobID, j.Index, j.RowIndex, j.Number, j.ExecProcNum)
 				results <- vehicleResult{Index: r.Index, RowIndex: r.RowIndex, Number: r.Number, ExecProcNum: r.ExecProcNum, FirstPoint: r.FirstPoint, FoundFiles: r.FoundFiles, Issue: errorText(r.Err), Err: r.Err}
 			}
 		}()
@@ -1100,12 +1100,12 @@ func runPDFVehicleOrdersJob(jobID string, sourceRows [][]string, jobsToRun []exe
 		finishPDFJobError(jobID, err.Error())
 		return
 	}
-	finishPDFJobResult(jobID, datedXLSXFileName("iin_vehicle_orders_first_point"), base64.StdEncoding.EncodeToString(xlsx), processed, failed)
+	finishPDFJobResult(jobID, datedXLSXFileName("execproc_vehicle_arrests_first_point"), base64.StdEncoding.EncodeToString(xlsx), processed, failed)
 }
 
-func fetchPDFVehicleOrderForIIN(index, rowIndex int, iin, execProcNum, session string) pdfTitleResult {
-	r := pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum}
-	payload := map[string]any{"iin": iin, "searchType": false, "statusCode": targetExecProcStatusCode}
+func fetchPDFVehicleOrderForExactExecProc(index, rowIndex int, execDocNum, execProcNum, session string) pdfTitleResult {
+	r := pdfTitleResult{Index: index, RowIndex: rowIndex, Number: execDocNum, ExecProcNum: execProcNum}
+	payload := map[string]any{"execDocNum": execDocNum, "searchType": false, "statusCode": targetExecProcStatusCode}
 	var response any
 	if err := execProcJSONRequest(http.MethodPost, baseURL+"/api/rest/execproc/search?page=0&size=100", session, payload, &response); err != nil {
 		r.Err = err
@@ -1113,19 +1113,20 @@ func fetchPDFVehicleOrderForIIN(index, rowIndex int, iin, execProcNum, session s
 	}
 	id := extractExecProcIDForExecProcNum(response, execProcNum)
 	if id == "" {
-		r.Err = fmt.Errorf("по ИИН %q не найдено ИП с номером %q", iin, execProcNum)
+		r.Err = fmt.Errorf("по исполнительному документу %q не найдено ИП с номером %q", execDocNum, execProcNum)
 		return r
 	}
+	r.ExecProcID = id
 	return fetchPDFTitlesFromExecProcIDsMatching(r, []string{id}, session, false, pdfVehicleOrderTitleMatches)
 }
 
-func fetchPDFVehicleOrderForIINWithAuth(jobID string, index, rowIndex int, iin, execProcNum string) pdfTitleResult {
+func fetchPDFVehicleOrderForExactExecProcWithAuth(jobID string, index, rowIndex int, execDocNum, execProcNum string) pdfTitleResult {
 	for {
 		session, err := waitForActiveJobSession(jobID)
 		if err != nil {
-			return pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum, Err: err}
+			return pdfTitleResult{Index: index, RowIndex: rowIndex, Number: execDocNum, ExecProcNum: execProcNum, Err: err}
 		}
-		result := fetchPDFVehicleOrderForIIN(index, rowIndex, iin, execProcNum, session)
+		result := fetchPDFVehicleOrderForExactExecProc(index, rowIndex, execDocNum, execProcNum, session)
 		if isAuthExpiredError(result.Err) {
 			pausePDFJobForAuth(jobID)
 			continue
@@ -3463,7 +3464,7 @@ func appendPDFVehicleOrderColumns(rows [][]string) [][]string {
 	for idx, row := range rows {
 		result[idx] = append([]string(nil), row...)
 	}
-	hasHeader := len(result) > 0 && isStrictIINExecProcHeaderRow(result[0])
+	hasHeader := len(result) > 0 && isStrictPDFHeaderRow(result[0])
 	if hasHeader {
 		result[0] = append(result[0], "Первый пункт постановления (полностью)", "Ошибка / найденные файлы")
 	}
