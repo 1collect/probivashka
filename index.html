@@ -412,7 +412,7 @@
           <button class="tab-button active" type="button" data-tab="page1">Выгрузка принятых мер</button>
           <button class="tab-button" type="button" data-tab="page2">Исполнительные производства</button>
           <button class="tab-button" type="button" data-tab="page6">Определение статьи прекращения</button>
-          <button class="tab-button" type="button" data-tab="page10">Определение статьи прекращения</button>
+          <button class="tab-button" type="button" data-tab="page10">наложение ареста ТС</button>
           <button class="tab-button" type="button" data-tab="page4">ЕРД по ИИН</button>
           <button class="tab-button" type="button" data-tab="page5">Выгрузка ОПО и ВПП</button>
           <button class="tab-button" type="button" data-tab="page7">Выгрузка ОПО и ВПП <span class="tab-badge">new</span></button>
@@ -1096,7 +1096,7 @@
       }
 
       if (tabId === "page10") {
-        pageTitle.textContent = "Определение статьи прекращения";
+        pageTitle.textContent = "наложение ареста ТС";
         pageDescription.textContent = "Загрузите XLSX с ИИН и номером исполнительного производства. Ищутся четыре вида постановлений об аресте или задержании транспорта и движимого имущества; полный первый пункт и найденные PDF попадут в отдельные колонки.";
         return;
       }
