@@ -440,6 +440,7 @@ func main() {
 	http.HandleFunc("/pdf-titles-v2-ws", handlePDFTitlesUpdatedWebSocket)
 	http.HandleFunc("/pdf-titles-iin-ws", handlePDFTitlesIINWebSocket)
 	http.HandleFunc("/pdf-vehicle-orders-ws", handlePDFVehicleOrdersWebSocket)
+	http.HandleFunc("/pdf-vehicle-orders-id-ws", handlePDFVehicleOrdersByIDWebSocket)
 	http.HandleFunc("/debtor-erd-ws", handleDebtorERDWebSocket)
 	http.HandleFunc("/request-status-ws", handleRequestStatusWebSocket)
 	http.HandleFunc("/request-status-v2-ws", handleRequestStatusUpdatedWebSocket)
@@ -1029,6 +1030,196 @@ func handlePDFVehicleOrdersWebSocket(w http.ResponseWriter, r *http.Request) {
 	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
 	go runPDFVehicleOrdersJob(jobID, sourceRows, jobsToRun, workers)
 	watchPDFJob(conn, jobID, req.OwnerToken)
+}
+
+func handlePDFVehicleOrdersByIDWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer conn.Close()
+	payload, err := readClientTextFrame(conn)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	var req pdfTitlesRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось разобрать запрос"})
+		return
+	}
+	switch req.Type {
+	case "pdf-vehicle-orders-id-watch":
+		watchPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-vehicle-orders-id-cancel":
+		cancelPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-vehicle-orders-id-token":
+		updatePDFJobSession(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken), strings.TrimSpace(req.SessionKey))
+		return
+	}
+	if strings.TrimSpace(req.OwnerToken) == "" || strings.TrimSpace(req.SessionKey) == "" {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "SESSION и ownerToken обязательны"})
+		return
+	}
+	if strings.Contains(req.SessionKey, ";") || strings.Contains(req.SessionKey, "=") {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "вставьте только значение SESSION без дополнительных параметров"})
+		return
+	}
+	fileBytes, err := base64.StdEncoding.DecodeString(req.FileBase64)
+	if err != nil || len(fileBytes) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось декодировать файл"})
+		return
+	}
+	sourceRows, err := readXLSXRowsBytes(fileBytes)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	jobsToRun, err := execDocOnlyJobsFromRows(sourceRows)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	if len(jobsToRun) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с номером исполнительного документа"})
+		return
+	}
+	jobID := newJobID()
+	workers := normalizePDFTitleWorkers(req.Workers, len(jobsToRun))
+	createPDFJob(jobID, req.OwnerToken, len(jobsToRun), fmt.Sprintf("Запущено потоков: %d", workers), req.SessionKey)
+	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
+	go runPDFVehicleOrdersByIDJob(jobID, sourceRows, jobsToRun, workers)
+	watchPDFJob(conn, jobID, req.OwnerToken)
+}
+
+func execDocOnlyJobsFromRows(rows [][]string) ([]execProcPairJob, error) {
+	jobs := make([]execProcPairJob, 0, len(rows))
+	for idx, row := range rows {
+		if rowIsEmpty(row) {
+			continue
+		}
+		if idx == 0 && len(row) > 0 && isExecDocNumberHeader(row[0]) {
+			continue
+		}
+		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
+			return nil, fmt.Errorf("строка %d: укажите номер исполнительного документа в первой колонке", idx+1)
+		}
+		jobs = append(jobs, execProcPairJob{Index: len(jobs), RowIndex: idx, Number: strings.TrimSpace(row[0])})
+	}
+	return jobs, nil
+}
+
+func isExecDocNumberHeader(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "документ") || strings.Contains(value, "execdoc")
+}
+
+func runPDFVehicleOrdersByIDJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
+	type resultRow struct {
+		Index, RowIndex                       int
+		Number, FirstPoint, FoundFiles, Issue string
+		Err                                   error
+	}
+	jobs := make(chan execProcPairJob)
+	results := make(chan resultRow, len(jobsToRun))
+	for i := 0; i < workers; i++ {
+		go func() {
+			for j := range jobs {
+				if isPDFJobCanceled(jobID) {
+					results <- resultRow{Index: j.Index, RowIndex: j.RowIndex, Err: errors.New("операция отменена")}
+					continue
+				}
+				r := fetchPDFVehicleOrdersByIDWithAuth(jobID, j.Index, j.RowIndex, j.Number)
+				results <- resultRow{Index: r.Index, RowIndex: r.RowIndex, Number: r.Number, FirstPoint: r.FirstPoint, FoundFiles: r.FoundFiles, Issue: errorText(r.Err), Err: r.Err}
+			}
+		}()
+	}
+	go func() {
+		for _, j := range jobsToRun {
+			jobs <- j
+		}
+		close(jobs)
+	}()
+	all := make([]resultRow, len(jobsToRun))
+	failed, processed := 0, 0
+	for i := 0; i < len(jobsToRun); i++ {
+		r := <-results
+		all[r.Index] = r
+		if r.Err != nil || r.FirstPoint == "" || len(missingVehicleOrderTitles(r.FoundFiles)) > 0 {
+			failed++
+		} else {
+			processed++
+		}
+		updatePDFJob(jobID, func(job *pdfJobState) {
+			job.Status = "running"
+			job.Current = i + 1
+			job.Number = r.Number
+			job.Processed = processed
+			job.Failed = failed
+			job.Message = statusFromError(r.Err)
+			job.Error = errorText(r.Err)
+		})
+	}
+	if isPDFJobCanceled(jobID) {
+		return
+	}
+	rows := appendPDFVehicleOrderColumns(sourceRows)
+	for _, r := range all {
+		issue := r.Issue
+		if r.Err == nil && r.FirstPoint == "" {
+			issue = "Не удалось извлечь первый пункт постановления"
+		}
+		missing := missingVehicleOrderTitles(r.FoundFiles)
+		if len(missing) > 0 {
+			issue = joinNonEmpty("; ", issue, "Не найдены: "+strings.Join(missing, ", "))
+		}
+		if r.FoundFiles == "" && issue == "" {
+			issue = "Целевые PDF не найдены"
+		}
+		setPDFVehicleOrderColumns(rows, r.RowIndex, r.FirstPoint, r.FoundFiles, issue)
+	}
+	xlsx, err := buildXLSXBytes([]sheetData{{Name: "Результаты", Rows: rows}})
+	if err != nil {
+		finishPDFJobError(jobID, err.Error())
+		return
+	}
+	finishPDFJobResult(jobID, datedXLSXFileName("execdoc_vehicle_arrests_first_point"), base64.StdEncoding.EncodeToString(xlsx), processed, failed)
+}
+
+func fetchPDFVehicleOrdersByID(index, rowIndex int, execDocNum, session string) pdfTitleResult {
+	r := pdfTitleResult{Index: index, RowIndex: rowIndex, Number: execDocNum}
+	payload := map[string]any{"execDocNum": execDocNum, "searchType": false, "statusCode": targetExecProcStatusCode}
+	var response any
+	if err := execProcJSONRequest(http.MethodPost, baseURL+"/api/rest/execproc/search?page=0&size=100", session, payload, &response); err != nil {
+		r.Err = err
+		return r
+	}
+	ids := extractExecProcSearchIDs(response)
+	if len(ids) == 0 {
+		r.Err = fmt.Errorf("по исполнительному документу %q не найдено ИП", execDocNum)
+		return r
+	}
+	r.ExecProcCount = len(ids)
+	r.ExecProcID = ids[0]
+	return fetchPDFTitlesFromExecProcIDsMatching(r, ids, session, false, pdfVehicleOrderTitleMatches)
+}
+
+func fetchPDFVehicleOrdersByIDWithAuth(jobID string, index, rowIndex int, execDocNum string) pdfTitleResult {
+	for {
+		session, err := waitForActiveJobSession(jobID)
+		if err != nil {
+			return pdfTitleResult{Index: index, RowIndex: rowIndex, Number: execDocNum, Err: err}
+		}
+		result := fetchPDFVehicleOrdersByID(index, rowIndex, execDocNum, session)
+		if isAuthExpiredError(result.Err) {
+			pausePDFJobForAuth(jobID)
+			continue
+		}
+		return result
+	}
 }
 
 func runPDFVehicleOrdersJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
@@ -3464,7 +3655,7 @@ func appendPDFVehicleOrderColumns(rows [][]string) [][]string {
 	for idx, row := range rows {
 		result[idx] = append([]string(nil), row...)
 	}
-	hasHeader := len(result) > 0 && isStrictPDFHeaderRow(result[0])
+	hasHeader := len(result) > 0 && (isStrictPDFHeaderRow(result[0]) || len(result[0]) > 0 && isExecDocNumberHeader(result[0][0]))
 	if hasHeader {
 		result[0] = append(result[0], "Первый пункт постановления (полностью)", "Ошибка / найденные файлы")
 	}
@@ -4697,6 +4888,38 @@ func extractExecProcIDs(value any) []string {
 	}
 
 	walk(value)
+	return ids
+}
+
+func extractExecProcSearchIDs(value any) []string {
+	root, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	content, ok := root["content"].([]any)
+	if !ok {
+		return nil
+	}
+	seen := make(map[string]bool)
+	ids := make([]string, 0, len(content))
+	for _, item := range content {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := ""
+		for _, key := range []string{"execProcId", "execprocId", "exec_proc_id", "id"} {
+			if value, exists := row[key]; exists {
+				id = numberIDText(value)
+				break
+			}
+		}
+		if id == "" || id == "<nil>" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
 	return ids
 }
 
