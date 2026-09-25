@@ -412,6 +412,7 @@
           <button class="tab-button active" type="button" data-tab="page1">Выгрузка принятых мер</button>
           <button class="tab-button" type="button" data-tab="page2">Исполнительные производства</button>
           <button class="tab-button" type="button" data-tab="page6">Определение статьи прекращения</button>
+          <button class="tab-button" type="button" data-tab="page10">Определение статьи прекращения</button>
           <button class="tab-button" type="button" data-tab="page4">ЕРД по ИИН</button>
           <button class="tab-button" type="button" data-tab="page5">Выгрузка ОПО и ВПП</button>
           <button class="tab-button" type="button" data-tab="page7">Выгрузка ОПО и ВПП <span class="tab-badge">new</span></button>
@@ -775,6 +776,45 @@
       </aside>
     </section>
 
+    <section id="page10" class="tab-panel layout" hidden>
+      <div class="stack">
+        <section class="panel">
+          <h2>Параметры</h2>
+          <div class="field">
+            <label class="block" for="pdfVehicleSessionKey">Ключ сессии</label>
+            <div id="pdfVehicleSessionAuthAlert" class="auth-alert"></div>
+            <input id="pdfVehicleSessionKey" type="text" placeholder="SESSION">
+          </div>
+          <div class="field">
+            <label class="block" for="pdfVehicleSourceFile">Файл с ИИН и исполнительными производствами</label>
+            <input id="pdfVehicleSourceFile" type="file" accept=".xlsx">
+            <div class="hint">Строго две колонки: первая — ИИН, вторая — исполнительное производство. Поиск выполняется с фильтром iin, статусом “Окончено” и size=100.</div>
+          </div>
+          <div class="field">
+            <label class="block" for="pdfVehicleWorkersCount">Параллельных запросов</label>
+            <input id="pdfVehicleWorkersCount" type="text" value="8" inputmode="numeric" disabled>
+            <div class="hint">Фиксированное значение.</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="actions">
+            <div class="button-row">
+              <button id="pdfVehicleStartButton" type="button">Сформировать XLSX</button>
+              <button id="pdfVehicleCancelButton" class="danger" type="button" disabled hidden>Отменить</button>
+            </div>
+            <span class="meta">В результат добавляются полный текст первого пункта постановления и список найденных файлов.</span>
+            <div id="pdfVehicleResultCard" class="result-card" hidden></div>
+          </div>
+        </section>
+      </div>
+      <aside class="panel">
+        <h2>Статус</h2>
+        <div id="pdfVehicleStatus" class="status log">Ожидание запуска.</div>
+        <div class="bar"><div id="pdfVehicleProgressBar"></div></div>
+        <div id="pdfVehicleSummary" class="summary">Ищутся постановления об аресте и задержании транспорта, а также о запрете на движимое имущество.</div>
+      </aside>
+    </section>
+
     <section id="page9" class="tab-panel layout" hidden>
       <div class="stack">
         <section class="panel">
@@ -1052,6 +1092,12 @@
       if (tabId === "page7") {
         pageTitle.textContent = "Выгрузка ОПО и ВПП (обновленный)";
         pageDescription.textContent = "Загрузите XLSX с исполнительным документом в первой колонке и исполнительным производством во второй. Статусы будут выгружены только для указанного производства.";
+        return;
+      }
+
+      if (tabId === "page10") {
+        pageTitle.textContent = "Определение статьи прекращения";
+        pageDescription.textContent = "Загрузите XLSX с ИИН и номером исполнительного производства. Ищутся четыре вида постановлений об аресте или задержании транспорта и движимого имущества; полный первый пункт и найденные PDF попадут в отдельные колонки.";
         return;
       }
 
@@ -2083,6 +2129,11 @@
       id: "pdfIIN", page: "page8", path: "/pdf-titles-iin-ws", prefix: "pdf-titles-iin",
       activeKey: "probivashka.activePdfIINJob", resultKey: "probivashka.resultPdfIINJob",
       sessionKey: "probivashka.pdfIINSession", fileBase: "iin_execproc_with_pdf_parse"
+    });
+    createIINPairController({
+      id: "pdfVehicle", page: "page10", path: "/pdf-vehicle-orders-ws", prefix: "pdf-vehicle-orders",
+      activeKey: "probivashka.activePdfVehicleOrdersJob", resultKey: "probivashka.resultPdfVehicleOrdersJob",
+      sessionKey: "probivashka.pdfVehicleOrdersSession", fileBase: "iin_vehicle_orders_first_point"
     });
     createIINPairController({
       id: "requestIIN", page: "page9", path: "/request-status-iin-ws", prefix: "request-status-iin",

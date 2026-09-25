@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -353,6 +354,8 @@ type pdfTitleResult struct {
 	ParserTextSHA1    string
 	ParserPageCount   int
 	ParserTextPreview string
+	FirstPoint        string
+	FoundFiles        string
 	DecreeDate        string
 	LegalBasis        string
 	ExecProcCount     int
@@ -436,6 +439,7 @@ func main() {
 	http.HandleFunc("/execproc-ws", handleExecProcWebSocket)
 	http.HandleFunc("/pdf-titles-v2-ws", handlePDFTitlesUpdatedWebSocket)
 	http.HandleFunc("/pdf-titles-iin-ws", handlePDFTitlesIINWebSocket)
+	http.HandleFunc("/pdf-vehicle-orders-ws", handlePDFVehicleOrdersWebSocket)
 	http.HandleFunc("/debtor-erd-ws", handleDebtorERDWebSocket)
 	http.HandleFunc("/request-status-ws", handleRequestStatusWebSocket)
 	http.HandleFunc("/request-status-v2-ws", handleRequestStatusUpdatedWebSocket)
@@ -962,6 +966,205 @@ func handlePDFTitlesIINWebSocket(w http.ResponseWriter, r *http.Request) {
 	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
 	go runPDFIINJob(jobID, sourceRows, jobsToRun, workers)
 	watchPDFJob(conn, jobID, ownerToken)
+}
+
+func handlePDFVehicleOrdersWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer conn.Close()
+	payload, err := readClientTextFrame(conn)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	var req pdfTitlesRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось разобрать запрос"})
+		return
+	}
+	switch req.Type {
+	case "pdf-vehicle-orders-watch":
+		watchPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-vehicle-orders-cancel":
+		cancelPDFJob(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken))
+		return
+	case "pdf-vehicle-orders-token":
+		updatePDFJobSession(conn, strings.TrimSpace(req.JobID), strings.TrimSpace(req.OwnerToken), strings.TrimSpace(req.SessionKey))
+		return
+	}
+	if strings.TrimSpace(req.OwnerToken) == "" || strings.TrimSpace(req.SessionKey) == "" {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "SESSION и ownerToken обязательны"})
+		return
+	}
+	if strings.Contains(req.SessionKey, ";") || strings.Contains(req.SessionKey, "=") {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "вставьте только значение SESSION без дополнительных параметров"})
+		return
+	}
+	fileBytes, err := base64.StdEncoding.DecodeString(req.FileBase64)
+	if err != nil || len(fileBytes) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "не удалось декодировать файл"})
+		return
+	}
+	sourceRows, err := readXLSXRowsBytes(fileBytes)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	jobsToRun, err := strictIINExecProcPairJobsFromRows(sourceRows)
+	if err != nil {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	if len(jobsToRun) == 0 {
+		_ = writeServerJSON(conn, wsMessage{Type: "error", Message: "в XLSX не найдено строк с ИИН и исполнительным производством"})
+		return
+	}
+	jobID := newJobID()
+	workers := normalizePDFTitleWorkers(req.Workers, len(jobsToRun))
+	createPDFJob(jobID, req.OwnerToken, len(jobsToRun), fmt.Sprintf("Запущено потоков: %d", workers), req.SessionKey)
+	_ = writeServerJSON(conn, wsMessage{Type: "job", JobID: jobID, Total: len(jobsToRun), Message: fmt.Sprintf("Запущено потоков: %d", workers)})
+	go runPDFVehicleOrdersJob(jobID, sourceRows, jobsToRun, workers)
+	watchPDFJob(conn, jobID, req.OwnerToken)
+}
+
+func runPDFVehicleOrdersJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
+	type vehicleResult struct {
+		Index, RowIndex                                    int
+		Number, ExecProcNum, FirstPoint, FoundFiles, Issue string
+		Err                                                error
+	}
+	jobs := make(chan execProcPairJob)
+	results := make(chan vehicleResult, len(jobsToRun))
+	for i := 0; i < workers; i++ {
+		go func() {
+			for j := range jobs {
+				if isPDFJobCanceled(jobID) {
+					results <- vehicleResult{Index: j.Index, RowIndex: j.RowIndex, Err: errors.New("операция отменена")}
+					continue
+				}
+				r := fetchPDFVehicleOrderForIINWithAuth(jobID, j.Index, j.RowIndex, j.Number, j.ExecProcNum)
+				results <- vehicleResult{Index: r.Index, RowIndex: r.RowIndex, Number: r.Number, ExecProcNum: r.ExecProcNum, FirstPoint: r.FirstPoint, FoundFiles: r.FoundFiles, Issue: errorText(r.Err), Err: r.Err}
+			}
+		}()
+	}
+	go func() {
+		for _, j := range jobsToRun {
+			jobs <- j
+		}
+		close(jobs)
+	}()
+	all := make([]vehicleResult, len(jobsToRun))
+	failed, processed := 0, 0
+	for i := 0; i < len(jobsToRun); i++ {
+		r := <-results
+		all[r.Index] = r
+		if r.Err != nil || r.FirstPoint == "" || len(missingVehicleOrderTitles(r.FoundFiles)) > 0 {
+			failed++
+		} else {
+			processed++
+		}
+		updatePDFJob(jobID, func(job *pdfJobState) {
+			job.Status = "running"
+			job.Current = i + 1
+			job.Number = joinNonEmpty(" / ", r.Number, r.ExecProcNum)
+			job.Processed = processed
+			job.Failed = failed
+			job.Message = statusFromError(r.Err)
+			job.Error = errorText(r.Err)
+		})
+	}
+	if isPDFJobCanceled(jobID) {
+		return
+	}
+	rows := appendPDFVehicleOrderColumns(sourceRows)
+	for _, r := range all {
+		issue := r.Issue
+		if r.Err == nil && r.FirstPoint == "" {
+			issue = "Не удалось извлечь первый пункт постановления"
+		}
+		missing := missingVehicleOrderTitles(r.FoundFiles)
+		if len(missing) > 0 {
+			issue = joinNonEmpty("; ", issue, "Не найдены: "+strings.Join(missing, ", "))
+		}
+		if r.FoundFiles == "" && issue == "" {
+			issue = "Целевые PDF не найдены"
+		}
+		setPDFVehicleOrderColumns(rows, r.RowIndex, r.FirstPoint, r.FoundFiles, issue)
+	}
+	xlsx, err := buildXLSXBytes([]sheetData{{Name: "Результаты", Rows: rows}})
+	if err != nil {
+		finishPDFJobError(jobID, err.Error())
+		return
+	}
+	finishPDFJobResult(jobID, datedXLSXFileName("iin_vehicle_orders_first_point"), base64.StdEncoding.EncodeToString(xlsx), processed, failed)
+}
+
+func fetchPDFVehicleOrderForIIN(index, rowIndex int, iin, execProcNum, session string) pdfTitleResult {
+	r := pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum}
+	payload := map[string]any{"iin": iin, "searchType": false, "statusCode": targetExecProcStatusCode}
+	var response any
+	if err := execProcJSONRequest(http.MethodPost, baseURL+"/api/rest/execproc/search?page=0&size=100", session, payload, &response); err != nil {
+		r.Err = err
+		return r
+	}
+	id := extractExecProcIDForExecProcNum(response, execProcNum)
+	if id == "" {
+		r.Err = fmt.Errorf("по ИИН %q не найдено ИП с номером %q", iin, execProcNum)
+		return r
+	}
+	return fetchPDFTitlesFromExecProcIDsMatching(r, []string{id}, session, false, pdfVehicleOrderTitleMatches)
+}
+
+func fetchPDFVehicleOrderForIINWithAuth(jobID string, index, rowIndex int, iin, execProcNum string) pdfTitleResult {
+	for {
+		session, err := waitForActiveJobSession(jobID)
+		if err != nil {
+			return pdfTitleResult{Index: index, RowIndex: rowIndex, Number: iin, ExecProcNum: execProcNum, Err: err}
+		}
+		result := fetchPDFVehicleOrderForIIN(index, rowIndex, iin, execProcNum, session)
+		if isAuthExpiredError(result.Err) {
+			pausePDFJobForAuth(jobID)
+			continue
+		}
+		return result
+	}
+}
+
+func pdfVehicleOrderTitleMatches(title string) bool {
+	compact := compactLower(title)
+	targets := []string{
+		"Постановление о наложении ареста на транспортные средства",
+		"Постановление о задержании транспортного средства и водворении на специальную стоянку",
+		"Борышкердің көлік құралын ұстау және арнайы тұраққа қою туралы қаулы",
+		"Мүлікке тыйым салу туралы (жылжымалы мүлік) қаулы",
+	}
+	for _, target := range targets {
+		if strings.Contains(compact, compactLower(target)) {
+			return true
+		}
+	}
+	return false
+}
+
+func missingVehicleOrderTitles(foundFiles string) []string {
+	found := compactLower(foundFiles)
+	titles := []string{
+		"Постановление о наложении ареста на транспортные средства",
+		"Постановление о задержании транспортного средства и водворении на специальную стоянку",
+		"Борышкердің көлік құралын ұстау және арнайы тұраққа қою туралы қаулы",
+		"Мүлікке тыйым салу туралы (жылжымалы мүлік) қаулы",
+	}
+	var missing []string
+	for _, title := range titles {
+		if !strings.Contains(found, compactLower(title)) {
+			missing = append(missing, title)
+		}
+	}
+	return missing
 }
 
 func runPDFUpdatedJob(jobID string, sourceRows [][]string, jobsToRun []execProcPairJob, workers int) {
@@ -3255,6 +3458,59 @@ func appendPDFIINParseColumns(rows [][]string) [][]string {
 	return result
 }
 
+func appendPDFVehicleOrderColumns(rows [][]string) [][]string {
+	result := make([][]string, len(rows))
+	for idx, row := range rows {
+		result[idx] = append([]string(nil), row...)
+	}
+	hasHeader := len(result) > 0 && isStrictIINExecProcHeaderRow(result[0])
+	if hasHeader {
+		result[0] = append(result[0], "Первый пункт постановления (полностью)", "Ошибка / найденные файлы")
+	}
+	for idx := range result {
+		if hasHeader && idx == 0 {
+			continue
+		}
+		result[idx] = append(result[idx], "", "")
+	}
+	return result
+}
+
+func setPDFVehicleOrderColumns(rows [][]string, rowIndex int, firstPoint, foundFiles, issue string) {
+	if rowIndex < 0 || rowIndex >= len(rows) || len(rows[rowIndex]) < 2 {
+		return
+	}
+	rows[rowIndex][len(rows[rowIndex])-2] = firstPoint
+	rows[rowIndex][len(rows[rowIndex])-1] = strings.TrimSpace(strings.Join(nonEmptyStrings(issue, foundFiles), "\nНайденные файлы: "))
+}
+
+func nonEmptyStrings(values ...string) []string {
+	var result []string
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			result = append(result, strings.TrimSpace(value))
+		}
+	}
+	return result
+}
+
+func extractFirstNumberedPoint(text string) string {
+	text = strings.ReplaceAll(text, "\r", "")
+	startRE := regexp.MustCompile(`(?m)(?:^|\n)\s*1[.)]\s*`)
+	start := startRE.FindStringIndex(text)
+	if start == nil {
+		return ""
+	}
+	bodyStart := start[1]
+	rest := text[bodyStart:]
+	endRE := regexp.MustCompile(`(?im)(?:^|\n)\s*2[.)]\s*|\bПОСТАНОВИЛ(?:А)?\s*:`)
+	end := endRE.FindStringIndex(rest)
+	if end != nil {
+		rest = rest[:end[0]]
+	}
+	return strings.TrimSpace(rest)
+}
+
 func setPDFUpdatedParseColumns(rows [][]string, rowIndex int, decreeDate, legalBasis string) {
 	if rowIndex < 0 || rowIndex >= len(rows) {
 		return
@@ -3857,6 +4113,10 @@ func fetchPDFTitlesForIINExecProc(index int, rowIndex int, iin, execProcNum, ses
 }
 
 func fetchPDFTitlesFromExecProcIDs(result pdfTitleResult, execProcIDs []string, session string) pdfTitleResult {
+	return fetchPDFTitlesFromExecProcIDsMatching(result, execProcIDs, session, true, func(title string) bool { return pdfTitleMatchesTarget(title) || pdfTitleMatchesKazakhTarget(title) })
+}
+
+func fetchPDFTitlesFromExecProcIDsMatching(result pdfTitleResult, execProcIDs []string, session string, preferRussian bool, matchesTarget func(string) bool) pdfTitleResult {
 	allTitles := make([]string, 0)
 	ruMatches := make([]matchedPDFDocument, 0)
 	kzMatches := make([]matchedPDFDocument, 0)
@@ -3873,29 +4133,34 @@ func fetchPDFTitlesFromExecProcIDs(result pdfTitleResult, execProcIDs []string, 
 				continue
 			}
 			allTitles = append(allTitles, title)
-			if pdfTitleMatchesTarget(title) {
-				ruMatches = append(ruMatches, matchedPDFDocument{Title: title, Doc: doc, Lang: "ru"})
-				continue
-			}
-			if pdfTitleMatchesKazakhTarget(title) {
-				kzMatches = append(kzMatches, matchedPDFDocument{Title: title, Doc: doc, Lang: "kz"})
+			if matchesTarget(title) {
+				lang := "ru"
+				if strings.Contains(strings.ToLower(title), "қаулы") {
+					lang = "kz"
+				}
+				match := matchedPDFDocument{Title: title, Doc: doc, Lang: lang}
+				if lang == "kz" {
+					kzMatches = append(kzMatches, match)
+				} else {
+					ruMatches = append(ruMatches, match)
+				}
 			}
 		}
 	}
 
 	result.AllTitles = append([]string(nil), allTitles...)
+	result.FoundFiles = strings.Join(allTitles, "\n")
 	result.ExecProcCount = len(execProcIDs)
 	matches := ruMatches
-	if len(matches) == 0 {
+	if !preferRussian {
+		matches = append(matches, kzMatches...)
+	} else if len(matches) == 0 {
 		matches = kzMatches
 	}
 	if len(matches) > 0 {
 		result.Titles = matchedPDFDocumentTitles(matches)
 		for _, match := range matches {
 			result.PDFRefs = append(result.PDFRefs, matchedPDFDocumentRef(match))
-			if result.DecreeDate != "" && result.LegalBasis != "" {
-				break
-			}
 			pdfData, err := downloadPDFDocument(session, match.Doc, match.Lang)
 			if err != nil {
 				result.Err = err
@@ -3912,6 +4177,9 @@ func fetchPDFTitlesFromExecProcIDs(result pdfTitleResult, execProcIDs []string, 
 			if err != nil {
 				result.Err = err
 				return result
+			}
+			if point := extractFirstNumberedPoint(parsed.FullText); point != "" {
+				result.FirstPoint = joinNonEmpty("\n\n", result.FirstPoint, match.Title+":\n"+point)
 			}
 			if result.ParserFileSHA1 == "" {
 				result.ParserFileSHA1 = parsed.FileSHA1
@@ -4176,6 +4444,7 @@ type pdfParseAPIResponse struct {
 	TextSHA1    string `json:"textSha1"`
 	PageCount   int    `json:"pageCount"`
 	TextPreview string `json:"textPreview"`
+	FullText    string `json:"fullText"`
 }
 
 func parsePDFWithPythonAPI(data []byte) (pdfParseAPIResponse, error) {

@@ -164,6 +164,7 @@ def parse_pdf(data: bytes) -> dict[str, str | int]:
         "textSha1": hashlib.sha1(normalized_text.encode("utf-8")).hexdigest(),
         "pageCount": page_count,
         "textPreview": collapse_spaces(normalized_text[:700]),
+        "fullText": normalized_text,
     }
 
 
